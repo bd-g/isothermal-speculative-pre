@@ -2,6 +2,13 @@
 
 This project partially fulfills the requirements for the EECS 583 Compilers course at the University of Michigan.
 
+## Requirements
+
+- LLVM Installation - see Step 1 in [Setup](#setup).
+- Packages required by `get_statistics.sh`
+    - tr
+    - sed
+
 ## Setup
 
 1. [Install LLVM](https://llvm.org/docs/GettingStarted.html#getting-the-source-code-and-building-llvm) on your machine. Then, clone this repository to your machine.
