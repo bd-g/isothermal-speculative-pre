@@ -40,7 +40,7 @@ done
 shift "$((OPTIND-1))"
 
 # Verify at least one argument (source program) was passed
-if [ "$#" -lt 1 ]
+if [ "$#" -lt 1 ] 
 then
     echo "*** Missing argument ***"
     echo ""
@@ -53,7 +53,7 @@ source_program=${1}
 ispre_pass=${2:-"../build/ISPRE/ISPRE.so"}
 
 # Delete outputs from any previous runs
-# rm -f default.profraw ${source_program}_prof ${source_program}_ispre ${source_program}_no_fplicm *.bc ${source_program}.profdata *_output *.ll
+rm -f default.profraw ${source_program}_prof ${source_program}_ispre ${source_program}_no_fplicm *.bc ${source_program}.profdata *_output *.ll
 
 # Convert source code to bitcode (IR)
 clang -emit-llvm -c ${source_program}.c -o ${source_program}.bc
@@ -77,7 +77,6 @@ clang ${source_program}.ls.bc -o ${source_program}_no_ispre
 clang ${source_program}.ispre.bc -o ${source_program}_ispre
 
 # Produce output from binary to check correctness
-./${source_program}_no_ispre > correct_output
 ./${source_program}_ispre > ispre_output
 
 echo -e "=== Correctness Check ==="
