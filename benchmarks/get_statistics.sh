@@ -49,19 +49,27 @@ then
 fi
 
 # Get command line arguments
-source_program=$1
+source_program=${1}
 ispre_pass=${2:-"../build/ISPRE/ISPRE.so"}
 
 # Delete outputs from any previous runs
-rm -f default.profraw ${source_program}_prof ${source_program}_fplicm ${source_program}_no_fplicm *.bc ${source_program}.profdata *_output *.ll
+# rm -f default.profraw ${source_program}_prof ${source_program}_ispre ${source_program}_no_fplicm *.bc ${source_program}.profdata *_output *.ll
 
 # Convert source code to bitcode (IR)
 clang -emit-llvm -c ${source_program}.c -o ${source_program}.bc
 # Canonicalize natural loops
 opt -enable-new-pm=0 -loop-simplify ${source_program}.bc -o ${source_program}.ls.bc
+# Instrument profiler
+opt -enable-new-pm=0 -pgo-instr-gen -instrprof ${source_program}.ls.bc -o ${source_program}.ls.prof.bc
+# Generate binary executable with profiler embedded
+clang -fprofile-instr-generate ${source_program}.ls.prof.bc -o ${source_program}_prof
+
+# Generate profiled data
+./${source_program}_prof > correct_output
+llvm-profdata merge -o ${source_program}.profdata default.profraw
 
 # Apply extra LLVM pass (second argument with default to ISPRE.so)
-opt -enable-new-pm=0 -o ${source_program}.ispre.bc -load ${ispre_pass} < ${source_program}.ls.bc > /dev/null
+opt -enable-new-pm=0 -o ${source_program}.ispre.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -load ${ispre_pass} < ${source_program}.ls.bc > /dev/null
 
 # Generate binary excutable before ISPRE: Unoptimized code
 clang ${source_program}.ls.bc -o ${source_program}_no_ispre
