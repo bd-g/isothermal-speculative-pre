@@ -69,6 +69,7 @@ clang ${source_program}.ls.bc -o ${source_program}_no_ispre
 clang ${source_program}.ispre.bc -o ${source_program}_ispre
 
 # Produce output from binary to check correctness
+./${source_program}_no_ispre > correct_output
 ./${source_program}_ispre > ispre_output
 
 echo -e "=== Correctness Check ==="
