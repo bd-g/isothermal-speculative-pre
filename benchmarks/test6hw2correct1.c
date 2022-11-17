@@ -17,13 +17,13 @@ int main(){
 	int B[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 	int i, j;
 	j = 0;
-	int x,y,z;
+	int x, y, z;
 	for(i = 0; i < 10; i++) {
   		B[i] = A[j] * 11 + i;
-		z=x+y;
-  		if(i < 8) 
+		z = x + y;
+  		if (i < 8) 
   			j = i;
-		z=x+y;
+		z = x + y;
 		printf("%d\n", B[i]);
 	}
 	return 0;

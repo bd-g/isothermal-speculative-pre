@@ -7,16 +7,14 @@ while(t1>sum)
 same if but added t1=a+b. */
 
 int main() {
-    int a=200;
-    int b=46;
-    int sum=205;
-    while(a+b>sum)
-    {
-        if(sum%10==0)
-        {
-            a=a+1;
+    int a = 200;
+    int b = 46;
+    int sum = 205;
+    while (a + b > sum) {
+        if(sum % 10 == 0) {
+            a = a + 1;
         }
-        sum=sum+b;
+        sum = sum + b;
     }
     
     printf("%d\n", sum);

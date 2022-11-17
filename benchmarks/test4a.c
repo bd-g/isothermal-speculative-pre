@@ -18,7 +18,7 @@ int main() {
     } else {
         e = 3;
     }
-    e = e + 1;
+    e = e + 1;  // e = 3
     if (e > 3) {
         e = e - 1;
     } else {
