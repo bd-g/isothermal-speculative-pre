@@ -1,0 +1,13 @@
+Implementation Details:
+First step of the implementation is identifying the frequent path of the loop.
+I use a BFS approach to find the frequent path by recursively calling the method on the Hot edge
+until either there are no hot edges or a backedge is hit. All the blocks in the frequent path are stored in 
+a Map with the key being the basic block name (unique in LLVM).
+
+After finding the frequent path, I loop through all the basic blocks in the loop. If I encounter a basic block
+that is not in the frequent path, I check to see if there are any store instructions in that basic block.
+If there is a store instruction, I check for the users of the getOperand(0) to see if there are any dependent loads on
+the frequent path. If there are dependent loads on a frequent path, I add the instruction to a map, with the key being the store instruction and the value being a vector of dependent load instructions. However, if there are any dependent stores of the value that exist on the frequent path, I remove the entry from the map as we no longer want to hoist it anymore.
+
+After identify all the instructions that need to be hoisted, I follow the stack var implementation outlined in the piazza post in order to hoist the instruction and maintain its current value. First, I make an allocaInst in the preheader to hold our stack var. I clone the instruction to hoist into the preheader. I then create a store instruction to put the result of the cloned instruction into the allocated stack variable, then insert the cloned instruction right above the store inst. Lastly I use the replaceUsesOutsideBlock() method to replace all uses of that load instruction (outside of the preheader) to point to the stack var. 
+
