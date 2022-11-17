@@ -6,15 +6,16 @@ help()
     # Display Help
     echo "Helper script to compile a single program using different combinations of LLVM passes and output statistics."
     echo
-    echo "Syntax: get_statistics [-h] [-d] source_program"
+    echo "Syntax: get_statistics [-h] [-d] source_program [pass_string]"
     echo "options:"
     echo "   - h     Print this help."
     echo "   - d     Delete compiled executable files."
     echo "argument:"
     echo "   - source_program    A single .c file to compile and run stats on"
     echo "                       ** Note: omit the .c extension, i.e. \"example.c\" should just be \"example\"" 
-    echo "   - custom_pass       If set, a single .so file containing an compiled LLVM pass to use as the third pass."
-    echo "                       ** Defaults to ../build/ISPRE/ISPRE.so"
+    echo "   - pass_string       If set, a string (in double quotes) indicating the pass(es) to run."
+    echo "                       ** Defaults to \"-ispre\""
+    echo "                       ** Example: \"-ispre -anotherpass\""
 }
 
 # helper function to allow for piping input
@@ -50,7 +51,8 @@ fi
 
 # Get command line arguments
 source_program=${1}
-ispre_pass=${2:-"../build/ISPRE/ISPRE.so"}
+passes=${2:-"-ispre"}
+llvm_library="../build/ISPRE/ISPRE.so"
 
 # Delete outputs from any previous runs
 rm -f default.profraw ${source_program}_prof ${source_program}_ispre ${source_program}_no_fplicm *.bc ${source_program}.profdata *_output *.ll
@@ -69,7 +71,7 @@ clang -fprofile-instr-generate ${source_program}.ls.prof.bc -o ${source_program}
 llvm-profdata merge -o ${source_program}.profdata default.profraw
 
 # Apply extra LLVM pass (second argument with default to ISPRE.so)
-opt -enable-new-pm=0 -o ${source_program}.ispre.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -load ${ispre_pass} < ${source_program}.ls.bc > /dev/null
+opt -enable-new-pm=0 -o ${source_program}.ispre.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -load ${llvm_library} ${passes} < ${source_program}.ls.bc > /dev/null
 
 # Generate binary excutable before ISPRE: Unoptimized code
 clang ${source_program}.ls.bc -o ${source_program}_no_ispre

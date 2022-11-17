@@ -23,8 +23,10 @@ using namespace llvm;
 
 namespace ISPRE {
 class ISPREPass : public FunctionPass {
-    // TODO
-    bool runOnFunction(Function &F) override { return false; }
+    bool runOnFunction(Function &F) override {
+        errs() << "RUNNING ISPRE PASS\n";
+        return false;
+    }
 
   public:
     static char ID;
