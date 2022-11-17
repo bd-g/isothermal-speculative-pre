@@ -18,7 +18,7 @@ int main(){
 	int i, j;
 	j = 0;
 	int x, y, z;
-	for(i = 0; i < 10; i++) {
+	for (i = 0; i < 10; i++) {
   		B[i] = A[j] * 11 + i;
 		z = x + y;
   		if (i < 8) 
