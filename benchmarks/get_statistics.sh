@@ -63,21 +63,19 @@ rm -f default.profraw ${source_program}_prof ${source_program}_ispre ${source_pr
 
 # Convert source code to bitcode (IR)
 clang -emit-llvm -Xclang -disable-O0-optnone -c ${source_program}.c -o ${source_program}.bc
-# Canonicalize natural loops
-opt -enable-new-pm=0 -loop-simplify ${source_program}.bc -o ${source_program}.ls.bc
 # Instrument profiler
-opt -enable-new-pm=0 -pgo-instr-gen -instrprof ${source_program}.ls.bc -o ${source_program}.ls.prof.bc
+opt -enable-new-pm=0 -pgo-instr-gen -instrprof ${source_program}.bc -o ${source_program}.prof.bc
 # Generate binary executable with profiler embedded
-clang -fprofile-instr-generate ${source_program}.ls.prof.bc -o ${source_program}_prof
+clang -fprofile-instr-generate ${source_program}.prof.bc -o ${source_program}_prof
 
 # Generate profiled data
 ./${source_program}_prof > correct_output
 llvm-profdata merge -o ${source_program}.profdata default.profraw
 
 # Use opt three times to compile with specific passes
-opt -enable-new-pm=0 -o ${source_program}.none.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata < ${source_program}.ls.bc > /dev/null
-opt -enable-new-pm=0 -o ${source_program}.gvn.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -gvn < ${source_program}.ls.bc > /dev/null
-opt -enable-new-pm=0 -o ${source_program}.ispre.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -load ${llvm_library} ${passes} < ${source_program}.ls.bc > /dev/null
+opt -enable-new-pm=0 -o ${source_program}.none.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata < ${source_program}.bc > /dev/null
+opt -enable-new-pm=0 -o ${source_program}.gvn.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -gvn < ${source_program}.bc > /dev/null
+opt -enable-new-pm=0 -o ${source_program}.ispre.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -load ${llvm_library} ${passes} < ${source_program}.bc > /dev/null
 
 # Generate binary excutable before ISPRE: Unoptimized code
 clang ${source_program}.none.bc -o ${source_program}_no_ispre
