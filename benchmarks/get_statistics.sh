@@ -58,7 +58,7 @@ llvm_library="../build/ISPRE/ISPRE.so"
 rm -f default.profraw ${source_program}_prof ${source_program}_ispre ${source_program}_no_ispre ${source_program}_gvn *.bc ${source_program}.profdata *_output *.ll
 
 # Convert source code to bitcode (IR)
-clang -emit-llvm -c ${source_program}.c -o ${source_program}.bc
+clang -emit-llvm -Xclang -disable-O0-optnone -c ${source_program}.c -o ${source_program}.bc
 # Canonicalize natural loops
 opt -enable-new-pm=0 -loop-simplify ${source_program}.bc -o ${source_program}.ls.bc
 # Instrument profiler
@@ -132,7 +132,7 @@ else
 fi
 
 # Cleanup
-rm -f default.profraw ${source_program}_prof *.bc ${source_program}.profdata *_output *.ll
+#rm -f default.profraw ${source_program}_prof *.bc ${source_program}.profdata *_output *.ll
 
 if [ "$delete_executables" -eq 1 ]; then
     rm -f ${source_program}_ispre ${source_program}_no_ispre ${source_program}_gvn
