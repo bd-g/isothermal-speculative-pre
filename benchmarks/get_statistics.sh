@@ -132,7 +132,7 @@ else
 fi
 
 # Cleanup
-#rm -f default.profraw ${source_program}_prof *.bc ${source_program}.profdata *_output *.ll
+rm -f default.profraw ${source_program}_prof *.bc ${source_program}.profdata *_output *.ll
 
 if [ "$delete_executables" -eq 1 ]; then
     rm -f ${source_program}_ispre ${source_program}_no_ispre ${source_program}_gvn
