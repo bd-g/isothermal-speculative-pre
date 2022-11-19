@@ -49,27 +49,93 @@ namespace ISPRE
     static char ID;
     ISPREpass() : FunctionPass(ID) {}
 
-    void getFreqPath(std::map<StringRef, int> &map, BasicBlock *B)
+    bool runOnFunction(Function &F) override
     {
+
+      std::map<StringRef, double> freqs;
+      std::vector<StringRef> hotNodes;
+      std::vector<StringRef> coldNodes;
+      std::vector<std::pair<StringRef, StringRef>> hotEdges;
+      std::vector<std::pair<StringRef, StringRef>> coldEdges;
+
+      BlockFrequencyInfo &bfi = getAnalysis<BlockFrequencyInfoWrapperPass>().getBFI();
       BranchProbabilityInfo &bpi = getAnalysis<BranchProbabilityInfoWrapperPass>().getBPI();
-      for (BasicBlock *successor : successors(B))
+      // for(const auto& elem : hotNodes)
+      // {
+      //   errs() << elem.first << " " << elem.second << "\n";
+      // }
+      int maxCount = -1;
+      for (BasicBlock &BB : F)
       {
-        if (bpi.getEdgeProbability(B, successor) >= BranchProbability(4, 5))
+        int freq = bfi.getBlockFreq(&BB).getFrequency();
+        freqs[BB.getName()] = freq;
+        if (freq > maxCount)
         {
-          if (map.count(successor->getName()) > 0)
-          {
-            return;
-          }
-          map[successor->getName()] = 1;
-          getFreqPath(map, successor);
+          maxCount = freq;
         }
       }
-    }
 
-   bool runOnFunction(Function &F) override {
-      errs() << F.getName() << "\n";
-      errs() << "Biased Branch: " << "\n";
-      errs() << "Biased Branch2: " << "\n";
+      errs() << maxCount << " count" << '\n';
+      for (auto i = freqs.begin(); i != freqs.end(); i++)
+      {
+        i->second = i->second / maxCount;
+        if (i->second > 0.8)
+        {
+          hotNodes.push_back(i->first);
+        }
+        else
+        {
+          coldNodes.push_back(i->first);
+        }
+      }
+
+      for (BasicBlock &BB : F)
+      {
+        for (BasicBlock *successor : successors(&BB))
+        {
+          BranchProbability edgeProb = bpi.getEdgeProbability(&BB, successor);
+          const uint64_t val = (uint64_t)(freqs[BB.getName()] * maxCount);
+          int edgeProb2 = edgeProb.scale(val);
+          double scaled = (double)edgeProb2 / maxCount;
+          if (scaled > .8)
+          {
+            hotEdges.push_back(std::make_pair(BB.getName(), successor->getName()));
+          }
+          else
+          {
+            coldEdges.push_back(std::make_pair(BB.getName(), successor->getName()));
+          }
+        }
+      }
+
+      errs() << "------------" << '\n';
+
+      errs() << "--Hot Nodes--" << '\n';
+      for (auto i : hotNodes)
+      {
+        errs() << i << '\n';
+      }
+      errs() << "--Cold Nodes--" << '\n';
+      for (auto i : coldNodes)
+      {
+        errs() << i << '\n';
+      }
+      errs() << "--Hot Edges--" << '\n';
+      for (auto i : hotEdges)
+      {
+        errs() << i.first << " - " << i.second << '\n';
+      }
+      errs() << "--Cold Edges--" << '\n';
+      for (auto i : coldEdges)
+      {
+        errs() << i.first << " - " << i.second << '\n';
+      }
+
+      // for(const auto& elem : freqs)
+      // {
+      //   errs() << elem.first << " " << elem.second << "\n";
+      // }
+
       return false;
     }
 
@@ -81,16 +147,8 @@ namespace ISPRE
     }
 
   private:
-    /// Little predicate that returns true if the specified basic block is in
-    /// a subloop of the current one, not the current one itself.
-    bool inSubLoop(BasicBlock *BB, Loop *CurLoop, LoopInfo *LI)
-    {
-      assert(CurLoop->contains(BB) && "Only valid if BB is IN the loop");
-      return LI->getLoopFor(BB) != CurLoop;
-    }
   };
 } // end of namespace Correctness
 
 char ISPRE::ISPREpass::ID = 0;
 static RegisterPass<ISPRE::ISPREpass> X("ispre", "Frequent Loop Invariant Code Motion for correctness test", false, false);
-

@@ -1,5 +1,6 @@
 PATH2LIB=~/final_proj/build/ISPRE/ISPRE.so        # Specify your build directory in the project
-PASS=-ispre                 # Choose either -fplicm-correctness or -fplicm-performance
+PASS=-ispre   
+PASS2=-testpass              # Choose either -fplicm-correctness or -fplicm-performance
 
 # Delete outputs from previous run.
 rm -f default.profraw ${1}_prof ${1}_ispre ${1}_no_ispre *.bc ${1}.profdata *_output *.ll
@@ -18,7 +19,7 @@ clang -fprofile-instr-generate ${1}.ls.prof.bc -o ${1}_prof
 llvm-profdata merge -o ${1}.profdata default.profraw
 
 # Apply FPLICM
-opt -enable-new-pm=0 -o ${1}.ispre.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -load ${PATH2LIB} ${PASS} < ${1}.ls.bc > /dev/null
+opt -enable-new-pm=0 -o ${1}.ispre.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -load ${PATH2LIB} ${PASS} ${PASS2} < ${1}.ls.bc > /dev/null
 
 # Generate binary excutable before FPLICM: Unoptimzied code
 clang ${1}.ls.bc -o ${1}_no_ispre
@@ -64,4 +65,4 @@ else
 fi
 
 # Cleanup
-rm -f default.profraw ${1}_prof ${1}_fplicm ${1}_no_fplicm *.bc ${1}.profdata *_output *.ll
+#rm -f default.profraw ${1}_prof ${1}_fplicm ${1}_no_fplicm *.bc ${1}.profdata *_output *.ll
