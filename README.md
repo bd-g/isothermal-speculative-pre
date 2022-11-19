@@ -26,9 +26,9 @@ This project partially fulfills the requirements for the EECS 583 Compilers cour
 ## Roadmap
 
 - Three different optimization types to eventually compare
-    - O1 optimization (default w/o GVN or ISPRE)
-    - O1 optimization w/GVN (Normal GVN-PRE that llvm already has)
-    - O1 optimization w/ISPRE (Profile-Based PRE we implemented)
+    - O0 optimization 
+    - O0 optimization plus gvn pass
+    - O0 optimization plus our custom ISPRE pass
 
 
 ## Bibliography
