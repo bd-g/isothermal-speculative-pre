@@ -28,13 +28,13 @@ if [[ $VIZ_TYPE == "cfg" ]]; then
   fi
 fi
 
-# If not vizzing a special bitcode file, use .ls.bc,
-# otherwise use .bc
-if [[ $BENCH != *"."* ]]; then
-  BITCODE=$BITCODE_DIR/$BENCH.ls.bc
-else
-  BITCODE=$BITCODE_DIR/$BENCH.bc
-fi
+# # If not vizzing a special bitcode file, use .ls.bc,
+# # otherwise use .bc
+# if [[ $BENCH != *"."* ]]; then
+#   BITCODE=$BITCODE_DIR/$BENCH.ls.bc
+# else
+BITCODE=$BITCODE_DIR/$BENCH.bc
+# fi
 
 # Generate .dot files in tmp dir
 opt $PROF_FLAGS -enable-new-pm=0 -dot-$VIZ_TYPE $BITCODE > /dev/null
