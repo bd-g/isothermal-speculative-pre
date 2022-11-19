@@ -9,7 +9,8 @@ help()
     echo "Syntax: get_statistics [-h] [-d] source_program [pass_string]"
     echo "options:"
     echo "   - h     Print this help."
-    echo "   - d     Delete compiled executable files."
+    echo "   - d     Delete intermediate files (but not compiled executable files)"
+    echo "   - D     Delete all produced files"
     echo "argument:"
     echo "   - source_program    A single .c file to compile and run stats on"
     echo "                       ** Note: omit the .c extension, i.e. \"example.c\" should just be \"example\"" 
@@ -23,15 +24,18 @@ get_bytes_from_bcanalysis () {
     echo "$1" | sed -n '2p' - | tr '\n' ' ' | sed -e 's/[^0-9]/ /g' -e 's/^ *//g' -e 's/ *$//g' | tr -s ' ' | sed 's/ /\n/g' | sed -n '2p' -  
 }
 
-delete_executables=0
+delete_intermediate=0
+delete_all=0
 # Get command line options
-while getopts ":hd" option; do
+while getopts ":hdD" option; do
     case $option in
         h) # display help
             help
             exit;;
         d) # delete executables
-            delete_executables=1;;
+            delete_intermediate=1;;
+        D) # delete all
+            delete_all=1;;
         \?) # incorrect option
             echo "Error: Invalid option"
             exit 1;;
@@ -132,8 +136,10 @@ else
 fi
 
 # Cleanup
-rm -f default.profraw ${source_program}_prof *.bc ${source_program}.profdata *_output *.ll
+if [ "$delete_intermediate" -eq 1 ] || [ "$delete_all" -eq 1 ]; then
+    rm -f default.profraw ${source_program}_prof *.bc ${source_program}.profdata *_output *.ll
+fi
 
-if [ "$delete_executables" -eq 1 ]; then
+if [ "$delete_all" -eq 1 ] ; then
     rm -f ${source_program}_ispre ${source_program}_no_ispre ${source_program}_gvn
 fi
