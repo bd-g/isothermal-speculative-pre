@@ -6,20 +6,17 @@ While testing, change value of b to -2 and check => there should be no exception
 but an exception from d=b/c only. Current output is an exception. */
 
 int main() {
-    int a=1;
-    int b=14;
-    int c=0;
-    int d=0;
-    if(b>c)
-    {
+    int a = 1;
+    int b = 14;
+    int c = 0;
+    int d = 0;
+    if (b > c) {
         printf("next line throws exception in if");
-        a=b/c;
+        a = b / c;
+    } else {
+        a = 0;
     }
-    else
-    {
-        a=0;
-    }
-    d=b/c;
+    d = b / c;
     
     printf("%d\n", d);
 

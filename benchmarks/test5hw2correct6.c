@@ -22,16 +22,14 @@ int main(){
 	j = 0;
 	for(i = 0; i < 10; i++) {
   		B[i] = k * 2 + A[j] * 23 + i;
-  		if (i % 7 == 0){
-			z=x+y;
-  			if (i % 2 == 1)
-  				j = i;
-				
-  			else
-                {
-				z=x+y;
+  		if (i % 7 == 0) {
+			z = x + y;
+  			if (i % 2 == 1) {
+				j = i;
+			} else {
+				z = x + y;
   				k = i + 1;
-                }
+            }
   		} 
 		printf("%d\n", B[i]);
 	}
