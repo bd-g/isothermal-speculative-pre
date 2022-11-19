@@ -41,10 +41,7 @@ struct ISPREPass : public FunctionPass {
 
         BlockFrequencyInfo &bfi = getAnalysis<BlockFrequencyInfoWrapperPass>().getBFI();
         BranchProbabilityInfo &bpi = getAnalysis<BranchProbabilityInfoWrapperPass>().getBPI();
-        // for(const auto& elem : hotNodes)
-        // {
-        //   errs() << elem.first << " " << elem.second << "\n";
-        // }
+
         int maxCount = -1;
         for (BasicBlock &BB : F) {
             int freq = bfi.getBlockFreq(&BB).getFrequency();
@@ -78,29 +75,29 @@ struct ISPREPass : public FunctionPass {
             }
         }
 
-        errs() << "------------" << '\n';
+        errs() << "*************" << '\n';
 
         errs() << "--Hot Nodes--" << '\n';
         for (auto i : hotNodes) {
             errs() << i << '\n';
         }
+
         errs() << "--Cold Nodes--" << '\n';
         for (auto i : coldNodes) {
             errs() << i << '\n';
         }
+
         errs() << "--Hot Edges--" << '\n';
         for (auto i : hotEdges) {
             errs() << i.first << " - " << i.second << '\n';
         }
+
         errs() << "--Cold Edges--" << '\n';
         for (auto i : coldEdges) {
             errs() << i.first << " - " << i.second << '\n';
         }
 
-        // for(const auto& elem : freqs)
-        // {
-        //   errs() << elem.first << " " << elem.second << "\n";
-        // }
+        errs() << "*************" << '\n';
 
         return false;
     }
