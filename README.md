@@ -23,6 +23,14 @@ This project partially fulfills the requirements for the EECS 583 Compilers cour
     $ ./get_statistics.sh -d hw1correct1
     ```
 
+## Roadmap
+
+- Three different optimization types to eventually compare
+    - O2 optimization with gvn pass turned _off_
+    - O2 optimization (which by default has gvn pass turned _on_)
+    - O2 optimization with gvn pass turned _off_ and our custom ISPRE pass turned _on_
+
+
 ## Bibliography
 
 This project is inspired and informed by the following paper - a big thank you to the authors.
