@@ -37,6 +37,7 @@ This project is inspired and informed by the following paper - a big thank you t
 
 Horspool, R.N., Pereira, D.J. and Scholz, B. (2006) “Fast profile-based partial redundancy elimination,” Lecture Notes in Computer Science, pp. 362–376. Available at: https://doi.org/10.1007/11860990_22.  -->
 
+- Psuedo code for Necessity
  ```
     Initialize In(X) to 0 for all basic blocks X
     change = 1
