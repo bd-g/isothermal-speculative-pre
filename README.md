@@ -41,11 +41,11 @@ Horspool, R.N., Pereira, D.J. and Scholz, B. (2006) “Fast profile-based partia
     Initialize In(X) to 0 for all basic blocks X
     change = 1
     while (change) do
-    change = 0
-    for each basic block in procedure, X, do
-    old_NEEDIN = NEEDIN(X)
-    NEEDOUT(X) = Union(NeedIn(Y)) for all successors Y of X
-    NEEDIN(X) = NEEDOUT(X) - GEN(X) + REMOVABLE(X)
-    if (old_IN != IN(X)) then
-        change = 1
+        change = 0
+        for each basic block in procedure, X, do
+            old_NEEDIN = NEEDIN(X)
+            NEEDOUT(X) = Union(NeedIn(Y)) for all successors Y of X
+            NEEDIN(X) = NEEDOUT(X) - GEN(X) + REMOVABLE(X)
+            if (old_IN != IN(X)) then
+                change = 1
 ```
