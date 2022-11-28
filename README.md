@@ -1,4 +1,4 @@
-<!-- # Isothermal Speculative Partial Redundancy Elimination
+# Isothermal Speculative Partial Redundancy Elimination
 
 This project partially fulfills the requirements for the EECS 583 Compilers course at the University of Michigan.
 
@@ -30,23 +30,25 @@ This project partially fulfills the requirements for the EECS 583 Compilers cour
     - O0 optimization plus gvn pass
     - O0 optimization plus our custom ISPRE pass
 
+## Implementation Notes
+
+#### Psuedo Code for Necessity
+
+```
+Initialize In(X) to 0 for all basic blocks X
+change = 1
+while (change) do
+    change = 0
+    for each basic block in procedure, X, do
+        old_NEEDIN = NEEDIN(X)
+        NEEDOUT(X) = Union(NeedIn(Y)) for all successors Y of X
+        NEEDIN(X) = NEEDOUT(X) - GEN(X) + REMOVABLE(X)
+        if (old_IN != IN(X)) then
+            change = 1
+```
 
 ## Bibliography
 
 This project is inspired and informed by the following paper - a big thank you to the authors.
 
-Horspool, R.N., Pereira, D.J. and Scholz, B. (2006) “Fast profile-based partial redundancy elimination,” Lecture Notes in Computer Science, pp. 362–376. Available at: https://doi.org/10.1007/11860990_22.  -->
-
-Psuedo code for Necessity
- ```
-    Initialize In(X) to 0 for all basic blocks X
-    change = 1
-    while (change) do
-        change = 0
-        for each basic block in procedure, X, do
-            old_NEEDIN = NEEDIN(X)
-            NEEDOUT(X) = Union(NeedIn(Y)) for all successors Y of X
-            NEEDIN(X) = NEEDOUT(X) - GEN(X) + REMOVABLE(X)
-            if (old_IN != IN(X)) then
-                change = 1
-```
+Horspool, R.N., Pereira, D.J. and Scholz, B. (2006) “Fast profile-based partial redundancy elimination,” Lecture Notes in Computer Science, pp. 362–376. Available at: https://doi.org/10.1007/11860990_22. 
