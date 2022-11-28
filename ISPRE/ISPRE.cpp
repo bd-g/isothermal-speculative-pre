@@ -21,6 +21,8 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <algorithm>
+#include <set>
 
 using namespace llvm;
 
@@ -153,6 +155,84 @@ namespace ISPRE
 
       errs() << "*************\n"
              << '\n';
+    }
+
+    /*
+    GRETCHEN PART: (Necessity)
+    Initialize In(X) to 0 for all basic blocks X
+    change = 1
+    while (change) do
+    change = 0
+    for each basic block in procedure, X, do
+    old_NEEDIN = NEEDIN(X)
+    NEEDOUT(X) = Union(NeedIn(Y)) for all successors Y of X
+    NEEDIN(X) = NEEDOUT(X) - GEN(X) + REMOVABLE(X)
+    if (old_IN != IN(X)) then
+        change = 1
+    */
+
+    std::map<StringRef, std::set<StringRef>> needin_map;
+    std::map<StringRef, std::set<StringRef>> needout_map;
+    std::map<StringRef, std::set<StringRef>> gen_map; // TODO
+    std::map<StringRef, std::set<StringRef>> removable_map; // TODO
+    std::map<StringRef, std::set<StringRef>> avout_map; // TODO
+
+    void compute_needin_needout(std::map<StringRef, std::set<StringRef>>& needin_map, 
+                                std::map<StringRef, std::set<StringRef>>& needout_map,
+                                Function& F) {
+        // Init NEEDIN(X) to 0 for all basic blocks X
+        for (BasicBlock &BB : F){
+            std::set<StringRef> empty_set;
+            needin_map[BB.getName()] = empty_set;
+        }
+
+        int change = 1;
+        while (change) {
+            change = 0;
+            for (BasicBlock &BB : F) {
+                auto bb_name = BB.getName();
+                std::set<StringRef> old_needin = needin_map[bb_name];
+                std::set<StringRef> needout;
+                
+                // NEEDOUT(X) = Union(NeedIn(Y)) for all successors Y of X
+                for (BasicBlock *successor : successors(&BB)) {
+                    std::set<StringRef> succ_needin = needin_map[successor->getName()];
+                    std::set_union(needout.begin(), needout.end(), succ_needin.begin(), succ_needin.end(),
+                                  std::inserter(needout, needout.end()));
+                }
+                
+                //NEEDIN(X) = NEEDOUT(X) - GEN(X) + REMOVABLE(X)
+                std::set<StringRef> needin;
+                std::set<StringRef> gen = gen_map[bb_name];
+                std::set_difference(needout.begin(), needout.end(), gen.begin(), gen.end(),
+                std::inserter(needin, needin.end()));
+                std::set<StringRef> removable = removable_map[bb_name];
+                std::set_union(needin.begin(), needin.end(), removable.begin(), removable.end(),
+                               std::inserter(needin, needin.end()));
+    
+                // update needin and needout
+                needin_map[bb_name] = needin;
+                needout_map[bb_name] = needout;
+                if (old_needin != needin) {
+                    change = 1;
+                }
+            }
+        }
+    }
+
+    std::map<std::pair<StringRef, StringRef>, std::set<StringRef>> insert_map;
+    void compute_insert_map(std::map<std::pair<StringRef, StringRef>, std::set<StringRef>>& insert_map,
+                            std::vector<std::pair<StringRef, StringRef>> &ingressEdges) {
+        for (auto itr = ingressEdges.begin(); itr != ingressEdges.end(); itr++) {
+            StringRef u = itr->first;
+            StringRef v = itr->second;
+            std::set<StringRef> insert_set;
+            std::set<StringRef> needin = needin_map[v];
+            std::set<StringRef> avout = avout_map[u];
+            std::set_difference(needin.begin(), needin.end(), avout.begin(), avout.end(),
+            std::inserter(insert_set, insert_set.end()));
+            insert_map[{u, v}] = insert_set;
+        }
     }
 
     bool runOnFunction(Function &F) override
