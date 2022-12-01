@@ -22,6 +22,8 @@
 #include <string>
 #include <vector>
 
+#include <unordered_set>
+
 using namespace llvm;
 
 #define DEBUG_TYPE "ispre"
@@ -155,15 +157,307 @@ namespace ISPRE
              << '\n';
     }
 
-    bool runOnFunction(Function &F) override
+    //If expression e is of the form x=a op b, for each of the operands a and b, only look before e. 
+    //Get loads and their corresponding sources. For each load, look through all stores for matching destination of store
+    //If found then e is killed and does not go into xUses
+    void fillXUses(Function &F, std::map<StringRef, std::set<Instruction *>> &xUses)
     {
 
+      for (BasicBlock &BB : F) // for each BB
+      {
+        for (auto &instr : BB) // for each instruction e within a block
+        {
+          // get operands of instr and check all instructions before this for stores into this operand
+
+          //errs() << instr << '\n';
+          switch (instr.getOpcode())
+          {
+          case Instruction::Add:
+          case Instruction::Sub:
+          case Instruction::Mul:
+          case Instruction::UDiv:
+          case Instruction::SDiv:
+          case Instruction::URem:
+          case Instruction::Shl:
+          case Instruction::LShr:
+          case Instruction::AShr:
+          case Instruction::And:
+          case Instruction::Or:
+          case Instruction::Xor:
+          case Instruction::SRem:
+          {
+            int numOfOperands = instr.getNumOperands();
+            //errs() << numOfOperands << '\n';
+            int isThisExprKilled = 0;
+            // for each operand in e
+            for (int idx = 0; idx < numOfOperands; idx++)
+            {
+              Value *currentOperand = instr.getOperand(idx);
+
+              // check previous instructions in that block
+              BasicBlock *bb = &BB;
+              for (BasicBlock::iterator k = bb->begin(); k != bb->end(); k++)
+              {
+                if (instr.isIdenticalTo(&*k))
+                {
+
+                  break;
+                }
+                else
+                {
+                  
+                  if (k->getOpcode() == Instruction::Load)
+                  {
+                    LoadInst *li = dyn_cast<LoadInst>(k);
+                    Value *loadedFrom = li->getPointerOperand();
+                    BasicBlock::iterator kTemp = bb->begin();
+                    while(kTemp != k){
+                      if (kTemp->getOpcode() == Instruction::Store)
+                      {
+                        StoreInst *si1 = dyn_cast<StoreInst>(kTemp);
+                        if (si1->getOperand(1) == loadedFrom)
+                        {
+                          isThisExprKilled = 1;
+                          break;
+                        }
+                      }
+                      kTemp++;
+                    }
+                  }
+                }
+              }
+            }
+
+            if (isThisExprKilled == 0)
+            {
+              if (xUses.find(BB.getName()) == xUses.end()) // cannot find current BB in xUses so add new entry
+              {
+                std::set<Instruction *> instructionToBeAdded;
+                instructionToBeAdded.insert(&instr);
+                xUses[BB.getName()] = instructionToBeAdded;
+              }
+              else
+              {
+                // add this instruction to already existing BB entry in xUses
+                std::set<Instruction *> instructionToBeAdded = xUses[BB.getName()];
+                instructionToBeAdded.insert(&instr);
+                xUses[BB.getName()] = instructionToBeAdded;
+              }
+            }
+            break;
+          }
+          default:
+          {
+            break;
+          }
+          }
+        }
+      }
+    }
+
+    void printSets(std::map<StringRef, std::set<Instruction *>> &mySet, const char* currSet)
+    {
+      errs() << "*************\n";
+      errs() << "Set " << currSet << '\n';
+      errs() << "*************\n";
+      
+      for (auto &pair : mySet)
+      {
+        errs() << pair.first << '\n';
+        std::set<Instruction *> values = pair.second;
+        for (Instruction *allInstrInBB : values)
+        {
+          errs() << *allInstrInBB << '\n';
+        }
+        errs() << "end of block" << '\n';
+        errs() <<'\n';
+      }
+    }
+
+    //If expression e is of the form x=a op b, for each of the operands a and b, only look after e in that BB. 
+    //Get loads from block starting till e, and their corresponding sources. For each load, look through all stores for matching destination of store after e
+    //If found then e is killed and does not go into gens
+    void fillGens(Function &F, std::map<StringRef, std::set<Instruction *>> &gens)
+    {
+
+      for (BasicBlock &BB : F)
+      {
+
+        for (auto &instr : BB)
+        {
+          // errs() << instr << '\n';
+          //  get operands of instr and check all instructions before this for stores into this operand
+
+          switch (instr.getOpcode())
+          {
+
+          case Instruction::Add:
+          case Instruction::Sub:
+          case Instruction::Mul:
+          case Instruction::UDiv:
+          case Instruction::SDiv:
+          case Instruction::URem:
+          case Instruction::Shl:
+          case Instruction::LShr:
+          case Instruction::AShr:
+          case Instruction::And:
+          case Instruction::Or:
+          case Instruction::Xor:
+          case Instruction::SRem:
+          {
+            int numOfOperands = instr.getNumOperands();
+            int isThisExprKilled = 0;
+            for (int idx = 0; idx < numOfOperands; idx++)
+            {
+              Value *currentOperand = instr.getOperand(idx);
+
+              BasicBlock *bb = &BB;
+              BasicBlock::iterator k = bb->begin();
+              // search through all instructions after the current instruction
+              // skip till you find current instruction and then do k++ to look at successor instructions within that BB
+              while (!instr.isIdenticalTo(&*k))
+              {
+                k++;
+              }
+              if (k != bb->end())
+              {
+                k++;
+                BasicBlock::iterator kTemp1=bb->begin();
+                while(kTemp1!=k){
+                if (kTemp1->getOpcode() == Instruction::Load)
+                  {
+                    LoadInst *li = dyn_cast<LoadInst>(kTemp1);
+                    Value *loadedFrom = li->getPointerOperand();
+
+                for (BasicBlock::iterator kTemp = k; kTemp != bb->end(); kTemp++)
+                {
+                  if (kTemp->getOpcode() == Instruction::Store)
+                  {
+                    StoreInst *si1 = dyn_cast<StoreInst>(kTemp);
+                    if (si1->getOperand(1) == loadedFrom)
+                    {
+                      isThisExprKilled = 1;
+                      break;
+                    }
+                  }
+                }
+                  }
+                  kTemp1++;
+                }
+              }
+            }
+
+            if (isThisExprKilled == 0)
+            {
+              if (gens.find(BB.getName()) == gens.end()) // if the current BB doesnt have entry in gens, create it
+              {
+                std::set<Instruction *> instructionToBeAdded;
+                instructionToBeAdded.insert(&instr);
+                gens[BB.getName()] = instructionToBeAdded;
+              }
+              else
+              { // current BB exists in gens so get it and add e to it
+                std::set<Instruction *> instructionToBeAdded = gens[BB.getName()];
+                instructionToBeAdded.insert(&instr);
+                gens[BB.getName()] = instructionToBeAdded;
+              }
+            }
+            break;
+          }
+
+          default:
+          {
+            break;
+          }
+          }
+        }
+      }
+    }
+
+    // if e is not in xuses and not in gens, it goes to kills
+    void fillKills(Function &F, std::map<StringRef, std::set<Instruction *>> &kills, std::map<StringRef, std::set<Instruction *>> &xUses, std::map<StringRef, std::set<Instruction *>> &gens)
+    {
+      for (BasicBlock &BB : F) 
+      {
+
+        for (auto &instr : BB)
+        {
+          switch (instr.getOpcode())
+          {
+
+          case Instruction::Add:
+          case Instruction::Sub:
+          case Instruction::Mul:
+          case Instruction::UDiv:
+          case Instruction::SDiv:
+          case Instruction::URem:
+          case Instruction::Shl:
+          case Instruction::LShr:
+          case Instruction::AShr:
+          case Instruction::And:
+          case Instruction::Or:
+          case Instruction::Xor:
+          case Instruction::SRem:
+          {
+            int doesInstrExistInXUses = 0;
+            int doesInstrExistInGens = 0;
+            if (xUses.find(BB.getName()) != xUses.end())
+            {
+              std::set<Instruction *> getInstr = xUses[BB.getName()];
+              if (getInstr.find(&instr) != getInstr.end())
+              {
+                doesInstrExistInXUses = 1;
+              }
+            }
+            if (gens.find(BB.getName()) != gens.end())
+            {
+              std::set<Instruction *> getInstr = gens[BB.getName()];
+              if (getInstr.find(&instr) != getInstr.end())
+              {
+                doesInstrExistInGens = 1;
+              }
+            }
+
+            if (doesInstrExistInGens == 0 && doesInstrExistInXUses == 0)
+            {
+              errs() << " not there in xuses or gens" << '\n';
+              if (kills.find(BB.getName()) == kills.end())
+              {
+                std::set<Instruction *> instructionToBeAdded;
+                instructionToBeAdded.insert(&instr);
+                kills[BB.getName()] = instructionToBeAdded;
+              }
+              else
+              {
+                std::set<Instruction *> instructionToBeAdded = kills[BB.getName()];
+                instructionToBeAdded.insert(&instr);
+                kills[BB.getName()] = instructionToBeAdded;
+              }
+            }
+
+            break;
+          }
+          default:
+          {
+            break;
+          }
+          }
+        }
+      }
+    }
+
+    bool runOnFunction(Function &F) override
+    {
       std::map<StringRef, double> freqs;
       std::vector<StringRef> hotNodes;
       std::vector<StringRef> coldNodes;
       std::vector<std::pair<StringRef, StringRef>> hotEdges;
       std::vector<std::pair<StringRef, StringRef>> coldEdges;
       std::vector<std::pair<StringRef, StringRef>> ingressEdges;
+
+      std::map<StringRef, std::set<Instruction *>> xUses;
+      std::map<StringRef, std::set<Instruction *>> gens;
+      std::map<StringRef, std::set<Instruction *>> kills;
 
       int maxCount = calculateHotColdNodes(F, freqs, hotNodes, coldNodes);
       calculateHotColdEdges(F, freqs, hotEdges, coldEdges, maxCount);
@@ -173,6 +467,16 @@ namespace ISPRE
 
       calculateIngressEdges(coldEdges, hotNodes, coldNodes, ingressEdges);
       printIngressEdges(ingressEdges);
+
+      fillXUses(F, xUses);
+      printSets(xUses, "xUses");
+
+      fillGens(F, gens);
+
+      printSets(gens, "Gens");
+
+      fillKills(F, kills, xUses, gens);
+      printSets(kills, "Kills");
 
       return false;
     }
