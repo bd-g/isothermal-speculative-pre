@@ -42,7 +42,7 @@ struct ISPREPass : public FunctionPass {
 
         int maxCount = -1;
         for (BasicBlock &BB : F) {
-            int freq = bfi.getBlockFreq(&BB).getFrequency();
+            int freq = bfi.getBlockProfileCount(&BB).getValue();
             freqs[BB.getName()] = freq;
             if (freq > maxCount) {
                 maxCount = freq;
