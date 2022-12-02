@@ -462,6 +462,79 @@ struct ISPREPass : public FunctionPass {
         }
     }
 
+    void fillCandidates(std::vector<StringRef> hotNodes,
+                        std::map<StringRef, std::set<Instruction *>> &xUses,
+                        std::map<StringRef, std::set<Instruction *>> &candidates) {
+        for (auto &xUseBB : xUses) {
+            if (std::find(hotNodes.begin(), hotNodes.end(), xUseBB.first) != hotNodes.end()) {
+                candidates[xUseBB.first] = xUseBB.second;
+            }
+        }
+    }
+
+    void fillRemovable(std::map<StringRef, std::set<Instruction *>> &candidates,
+                       std::map<StringRef, std::set<Instruction *>> gens,
+                       std::map<StringRef, std::set<Instruction *>> kills,
+                       std::map<StringRef, std::set<Instruction *>> xUses,
+                       std::map<StringRef, std::set<Instruction *>> removables,
+                       std::vector<StringRef> hotNodes, Function &F) {
+        std::map<StringRef, std::set<Instruction *>> avouts;
+        std::map<StringRef, std::set<Instruction *>> avins;
+
+        // Init AVOUT(b) to 0 for all basic blocks X
+        for (BasicBlock &BB : F) {
+            std::set<Instruction *> empty_set;
+            avouts[BB.getName()] = empty_set;
+        }
+
+        int change = 1;
+        while (change) {
+            change = 0;
+            for (BasicBlock &BB : F) {
+                auto bb_name = BB.getName();
+                std::set<Instruction *> old_avout = avouts[bb_name];
+                std::set<Instruction *> new_avin;
+
+                // AVIN(b) = INTERSECTION(Candidates if ingress edge, otherwise AVOUT(p))
+                // FIXME, need to include candidates
+                for (BasicBlock *predecessor : predecessors(&BB)) {
+                    std::set<Instruction *> pred_avout = avouts[predecessor->getName()];
+                    std::set_intersection(new_avin.begin(), new_avin.end(), pred_avout.begin(),
+                                          pred_avout.end(),
+                                          std::inserter(new_avin, new_avin.end()));
+                }
+
+                // AVOUT(b) = (AVIN(b) - KILL(b)) U GEN(b)
+                std::set<Instruction *> new_avout;
+                std::set<Instruction *> gen = gens[bb_name];
+                std::set<Instruction *> kill = kills[bb_name];
+                std::set_difference(new_avin.begin(), new_avin.end(), kill.begin(), kill.end(),
+                                    std::inserter(new_avout, new_avout.end()));
+                std::set_union(new_avout.begin(), new_avout.end(), gen.begin(), gen.end(),
+                               std::inserter(new_avout, new_avout.end()));
+
+                // update needin and needout
+                avins[bb_name] = new_avin;
+                avouts[bb_name] = new_avout;
+                if (old_avout != new_avout) {
+                    change = 1;
+                }
+            }
+        }
+
+        for (BasicBlock &BB : F) {
+            auto bb_name = BB.getName();
+            if (std::find(hotNodes.begin(), hotNodes.end(), bb_name) != hotNodes.end()) {
+                std::set<Instruction *> removable;
+                std::set<Instruction *> avin = avins[bb_name];
+                std::set<Instruction *> xUse = xUses[bb_name];
+                std::set_intersection(avin.begin(), avin.end(), xUse.begin(), xUse.end(),
+                                      std::inserter(removable, removable.end()));
+                removables[bb_name] = removable;
+            }
+        }
+    }
+
     bool runOnFunction(Function &F) override {
         std::map<StringRef, double> freqs;
         std::vector<StringRef> hotNodes;
