@@ -689,10 +689,12 @@ namespace ISPRE
             std::vector<std::pair<StringRef, StringRef>> hotEdges;
             std::vector<std::pair<StringRef, StringRef>> coldEdges;
             std::vector<std::pair<StringRef, StringRef>> ingressEdges;
-
+            
             std::map<StringRef, std::set<Instruction *>> xUses;
             std::map<StringRef, std::set<Instruction *>> gens;
             std::map<StringRef, std::set<Instruction *>> kills;
+            std::map<StringRef, std::set<Instruction *>> candidates;
+            std::map<StringRef, std::set<Instruction *>> removables;
 
             int maxCount = calculateHotColdNodes(F, freqs, hotNodes, coldNodes);
             calculateHotColdEdges(F, freqs, hotEdges, coldEdges, maxCount);
@@ -712,6 +714,12 @@ namespace ISPRE
 
             fillKills(F, kills);
             printSets(kills, "Kills");
+            
+            fillCandidates(hotNodes, xUses, candidates);
+            printSets(candidates, "Candidates");
+
+            fillRemovable(candidates, gens, kills, xUses, removables, hotNodes, F);
+            printSets(removables, "Removables");
 
             return false;
         }
