@@ -402,13 +402,17 @@ struct ISPREPass : public FunctionPass {
         }
     }
 
-    // if e is not in xuses and not in gens, it goes to kills
-    void fillKills(Function &F, std::map<StringRef, std::set<Instruction *>> &kills,
-                   std::map<StringRef, std::set<Instruction *>> &xUses,
-                   std::map<StringRef, std::set<Instruction *>> &gens) {
+    // for each expression e of the type x op y, get its operands and search in full function if
+    // there is a store to any of them. If yes, then add to kills set if operand is of type load
+    // instruction, then get it's operand and search for store with same dest if not of type load
+    // instruction but of type mul,sub,add then get it's operands and search for load. Then get
+    // load's operand and search for corresponding store with same dest. If found, enter into kills
+    // set
+    void fillKills(Function &F, std::map<StringRef, std::set<Instruction *>> &kills) {
         for (BasicBlock &BB : F) {
 
             for (auto &instr : BB) {
+                // errs() << instr << '\n';
                 switch (instr.getOpcode()) {
 
                 case Instruction::Add:
@@ -424,31 +428,87 @@ struct ISPREPass : public FunctionPass {
                 case Instruction::Or:
                 case Instruction::Xor:
                 case Instruction::SRem: {
-                    int doesInstrExistInXUses = 0;
-                    int doesInstrExistInGens = 0;
-                    if (xUses.find(BB.getName()) != xUses.end()) {
-                        std::set<Instruction *> getInstr = xUses[BB.getName()];
-                        if (getInstr.find(&instr) != getInstr.end()) {
-                            doesInstrExistInXUses = 1;
-                        }
-                    }
-                    if (gens.find(BB.getName()) != gens.end()) {
-                        std::set<Instruction *> getInstr = gens[BB.getName()];
-                        if (getInstr.find(&instr) != getInstr.end()) {
-                            doesInstrExistInGens = 1;
-                        }
-                    }
+                    int numOfOperands = instr.getNumOperands();
+                    for (int idx = 0; idx < numOfOperands; idx++) {
+                        Value *currentOperand = instr.getOperand(idx);
+                        Instruction *getOperandInstr = dyn_cast<Instruction>(
+                            currentOperand); // crashing if its a constant so check if not nullptr
 
-                    if (doesInstrExistInGens == 0 && doesInstrExistInXUses == 0) {
-                        errs() << " not there in xuses or gens" << '\n';
-                        if (kills.find(BB.getName()) == kills.end()) {
-                            std::set<Instruction *> instructionToBeAdded;
-                            instructionToBeAdded.insert(&instr);
-                            kills[BB.getName()] = instructionToBeAdded;
-                        } else {
-                            std::set<Instruction *> instructionToBeAdded = kills[BB.getName()];
-                            instructionToBeAdded.insert(&instr);
-                            kills[BB.getName()] = instructionToBeAdded;
+                        if (getOperandInstr != nullptr &&
+                            getOperandInstr->getOpcode() ==
+                                Instruction::Load) // get load for each operand
+                        {
+                            Value *loadOperand = getOperandInstr->getOperand(0);
+
+                            for (BasicBlock &BB1 : F) {
+
+                                for (auto &instr1 : BB1) {
+                                    if (instr1.getOpcode() == Instruction::Store) {
+                                        Value *storeDest = instr1.getOperand(1);
+                                        if (storeDest ==
+                                            loadOperand) // enter e into kill set of BB1 if store
+                                                         // dest is same as load source
+                                        {
+                                            if (kills.find(BB1.getName()) == kills.end()) {
+                                                std::set<Instruction *> instructionToBeAdded;
+                                                instructionToBeAdded.insert(&instr);
+                                                kills[BB1.getName()] = instructionToBeAdded;
+                                            } else {
+                                                std::set<Instruction *> instructionToBeAdded =
+                                                    kills[BB1.getName()];
+                                                instructionToBeAdded.insert(&instr);
+                                                kills[BB1.getName()] = instructionToBeAdded;
+                                            }
+                                            break; // go to next BB and check
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (getOperandInstr != nullptr &&
+                                   (getOperandInstr->getOpcode() == Instruction::Mul ||
+                                    getOperandInstr->getOpcode() == Instruction::Add ||
+                                    getOperandInstr->getOpcode() == Instruction::Sub)) {
+                            int numOfOperands1 = getOperandInstr->getNumOperands();
+                            for (int idx1 = 0; idx1 < numOfOperands1; idx1++) {
+                                Value *currentOperand1 = getOperandInstr->getOperand(idx1);
+                                Instruction *getOperandInstr1 =
+                                    dyn_cast<Instruction>(currentOperand1);
+                                if (getOperandInstr1 != nullptr &&
+                                    getOperandInstr1->getOpcode() == Instruction::Load) {
+                                    Value *loadOperand1 = getOperandInstr1->getOperand(0);
+
+                                    for (BasicBlock &BB2 : F) {
+
+                                        for (auto &instr2 : BB2) {
+                                            if (instr2.getOpcode() == Instruction::Store) {
+
+                                                Value *storeDest1 = instr2.getOperand(1);
+                                                if (storeDest1 ==
+                                                    loadOperand1) // enter e into kill set of BB1 if
+                                                                  // store dest is same as load
+                                                                  // source
+                                                {
+                                                    if (kills.find(BB2.getName()) == kills.end()) {
+                                                        std::set<Instruction *>
+                                                            instructionToBeAdded1;
+                                                        instructionToBeAdded1.insert(&instr);
+                                                        kills[BB2.getName()] =
+                                                            instructionToBeAdded1;
+                                                    } else {
+                                                        std::set<Instruction *>
+                                                            instructionToBeAdded1 =
+                                                                kills[BB2.getName()];
+                                                        instructionToBeAdded1.insert(&instr);
+                                                        kills[BB2.getName()] =
+                                                            instructionToBeAdded1;
+                                                    }
+                                                    break; // go to next BB and check
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -565,7 +625,7 @@ struct ISPREPass : public FunctionPass {
 
         printSets(gens, "Gens");
 
-        fillKills(F, kills, xUses, gens);
+        fillKills(F, kills);
         printSets(kills, "Kills");
 
         fillCandidates(hotNodes, xUses, candidates);
