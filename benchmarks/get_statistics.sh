@@ -74,8 +74,8 @@ llvm-profdata merge -o ${source_program}.profdata default.profraw
 
 # Use opt three times to compile with specific passes
 opt -enable-new-pm=0 -o ${source_program}.none.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata < ${source_program}.bc > /dev/null
-opt -enable-new-pm=0 -o ${source_program}.gvn.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -gvn < ${source_program}.bc > /dev/null
-opt -enable-new-pm=0 -o ${source_program}.ispre.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -load ${llvm_library} ${passes} < ${source_program}.bc > /dev/null
+opt -enable-new-pm=0 -o ${source_program}.gvn.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -gvn -dce < ${source_program}.bc > /dev/null
+opt -enable-new-pm=0 -o ${source_program}.ispre.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -load ${llvm_library} ${passes} -dce < ${source_program}.bc > /dev/null
 
 # Generate binary excutable before ISPRE: Unoptimized code
 clang ${source_program}.none.bc -o ${source_program}_no_ispre

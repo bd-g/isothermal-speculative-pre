@@ -4,7 +4,7 @@
 
 int main() {
     long long int a = 0, sum = 0, b = 0, c = 0, sum2 = 0, sum3 = 0;
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 100000; i++) {
         if (i < 90) {
             a = a + 1;
             b = b + 2;
