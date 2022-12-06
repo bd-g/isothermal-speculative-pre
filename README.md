@@ -18,17 +18,69 @@ This project partially fulfills the requirements for the EECS 583 Compilers cour
     $ cmake ..
     $ make
     ```
-3. Navigate to the `benchmarks` folder, and use the `get_statistics.sh` script to do profiling on any C file with and without ISPRE. You can view documentation for the script by running `./get_statistics.sh -h`. Example:
+3. Navigate to the `benchmarks` folder, and use the `get_statistics.sh` script to do profiling on any C file placed in the same folder. You can view documentation for the script by running `./get_statistics.sh -h`. Example:
     ```
-    $ ./get_statistics.sh -D test9
+    $ ./get_statistics.sh -D ispre_test1
     ```
 
-## Roadmap
+## Benchmarks
 
-- Three different optimization types to eventually compare
+The `get_statistics.sh` performs two different benchmarks, correctness and performance, on three levels. The three levels are:
+
     - O0 optimization 
-    - O0 optimization plus gvn pass
-    - O0 optimization plus our custom ISPRE pass
+    - O0 optimization plus global value numbering (LLVM's implementation of traditional PRE) and dead code elimination
+    - O0 optimization plus our custom ISPRE pass and dead code elimination
+
+The correctness benchmark will verify correct behavior of the custom pass by comparing the output of a compiled executable with our pass and the output of a compiled executable without our pass. 
+
+The performance benchmark will then run profiling on the three different levels, comparing runtime and IR code size between all three.
+
+## Results
+
+The below results were obtained by running the benchmark script on an department server at the University of Michigan.
+
+```
+$ ./get_statistics.sh ispre_test1
+=== Correctness Check ===
+>> Does the custom pass maintain correct program behavior?
+>> PASS
+
+=== Performance Check ===
+1. 
+   a. Runtime performance of unoptimized code
+
+real    0m0.304s
+user    0m0.304s
+sys     0m0.000s
+
+   b. Code size (IR) of unoptimized code
+
+      3480 bytes
+2. 
+   a. Runtime performance of GVN code
+
+real    0m0.359s
+user    0m0.359s
+sys     0m0.000s
+
+   b. Code size (IR) of optimized code
+
+      3504 bytes, .006% change
+
+3. 
+   a. Runtime performance of ISPRE code
+
+real    0m0.275s
+user    0m0.275s
+sys     0m0.000s
+
+   b. Code size (IR) of optimized code
+
+      3524 bytes, .012% change
+
+```
+
+bdgeorge@eecs583a:~/isothermal-speculative-pre/benchmarks$ 
 
 ## Bibliography
 
