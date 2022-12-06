@@ -6,18 +6,13 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/BranchProbabilityInfo.h"
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/LoopIterator.h"
-#include "llvm/Analysis/LoopPass.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Scalar/LoopPassManager.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include "llvm/Transforms/Utils/LoopUtils.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
 #include <algorithm>
@@ -61,6 +56,7 @@ struct ISPREPass : public FunctionPass {
         for (Instruction *candidate : candidates) {
             errs() << *candidate << '\n';
         }
+        errs() << "\n";
     }
 
     void printMap_String_Set(std::map<StringRef, std::set<Instruction *>> mySet,
@@ -95,6 +91,37 @@ struct ISPREPass : public FunctionPass {
             errs() << "end of block" << '\n';
             errs() << '\n';
         }
+    }
+
+    void printAll(std::vector<StringRef> hotNodes, std::vector<StringRef> coldNodes,
+                  std::vector<std::pair<StringRef, StringRef>> hotEdges,
+                  std::vector<std::pair<StringRef, StringRef>> coldEdges,
+                  std::vector<std::pair<StringRef, StringRef>> ingressEdges,
+                  std::map<StringRef, std::set<Instruction *>> xUses,
+                  std::map<StringRef, std::set<Instruction *>> gens,
+                  std::map<StringRef, std::set<Instruction *>> kills,
+                  std::set<Instruction *> candidates,
+                  std::map<StringRef, std::set<Instruction *>> avins,
+                  std::map<StringRef, std::set<Instruction *>> avouts,
+                  std::map<StringRef, std::set<Instruction *>> removables,
+                  std::map<StringRef, std::set<Instruction *>> needins,
+                  std::map<StringRef, std::set<Instruction *>> needouts,
+                  std::map<std::pair<StringRef, StringRef>, std::set<Instruction *>> inserts) {
+        printNodes(hotNodes, "Hot Nodes");
+        printNodes(coldNodes, "Cold Nodes");
+        printEdges(hotEdges, "Hot Edges");
+        printEdges(coldEdges, "Cold Edges");
+        printEdges(ingressEdges, "Ingress Edges");
+        printMap_String_Set(xUses, "xUses");
+        printMap_String_Set(gens, "Gens");
+        printMap_String_Set(kills, "Kills");
+        printSet(candidates, "Candidates");
+        printMap_String_Set(avins, "avins");
+        printMap_String_Set(avouts, "avouts");
+        printMap_String_Set(removables, "Removables");
+        printMap_String_Set(needins, "needins");
+        printMap_String_Set(needouts, "needouts");
+        printMap_Edge_Set(inserts, "inserts");
     }
 
     int calculateHotColdNodes(Function &F, std::map<StringRef, double> &freqs,
@@ -219,7 +246,6 @@ struct ISPREPass : public FunctionPass {
     // e. Get loads and their corresponding sources. For each load, look through all stores for
     // matching destination of store If found then e is killed and does not go into xUses
     void fillXUses(Function &F, std::map<StringRef, std::set<Instruction *>> &xUses) {
-
         for (BasicBlock &BB : F) // for each BB
         {
             for (auto &instr : BB) // for each instruction e within a block
@@ -305,7 +331,6 @@ struct ISPREPass : public FunctionPass {
     // sources. For each load, look through all stores for matching destination of store after e
     // If found then e is killed and does not go into gens
     void fillGens(Function &F, std::map<StringRef, std::set<Instruction *>> &gens) {
-
         for (BasicBlock &BB : F) {
 
             for (auto &instr : BB) {
@@ -618,12 +643,10 @@ struct ISPREPass : public FunctionPass {
                 Instruction *alloc;
                 if (allocas.find(allInstrInBB) != allocas.end()) {
                     alloc = allocas[allInstrInBB];
-                    errs() << "Test " << allInstrInBB->getName() << "\n";
                 } else {
                     IRBuilder<> IRB(&entry);
                     IRB.SetInsertPoint(firstPossInsert);
                     alloc = IRB.CreateAlloca(allInstrInBB->getType());
-                    errs() << alloc->getParent()->getName() << '\n';
                     allocas[allInstrInBB] = alloc;
                 }
 
@@ -692,13 +715,16 @@ struct ISPREPass : public FunctionPass {
 
         performRemoveAndInsert(inserts, allocas, F);
 
+        // Uncomment below line to print out all intermediate data
+        /* printAll(hotNodes, coldNodes, hotEdges, coldEdges, ingressEdges, xUses, gens, kills,
+                 candidates, avins, avouts, removables, needins, needouts, inserts); */
+
         return true;
     }
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
         AU.addRequired<BranchProbabilityInfoWrapperPass>();
         AU.addRequired<BlockFrequencyInfoWrapperPass>();
-        AU.addRequired<LoopInfoWrapperPass>();
     }
 };
 } // namespace ISPRE
