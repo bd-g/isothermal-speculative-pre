@@ -651,18 +651,7 @@ struct ISPREPass : public FunctionPass {
                 IRB3.SetInsertPoint(allInstrInBB);
                 Instruction *loadInst = IRB3.CreateLoad(allInstrInBB->getType(), alloc);
                 allInstrInBB->replaceAllUsesWith(loadInst);
-
-                // copy instruction over
             }
-
-            // errs() << pair.first.first << "-" << pair.first.second << "\n";
-            // std::set<Instruction *> values = pair.second;
-            // for (Instruction *allInstrInBB : values)
-            // {
-            //     errs() << *allInstrInBB << '\n';
-            // }
-            // errs() << "end of block" << '\n';
-            // errs() << '\n';
         }
     }
 
@@ -690,41 +679,20 @@ struct ISPREPass : public FunctionPass {
         calculateHotColdEdges(F, freqs, hotEdges, coldEdges, maxCount);
         calculateIngressEdges(coldEdges, hotNodes, coldNodes, ingressEdges);
 
-        // printNodes(hotNodes, "hotNodes");
-        // printNodes(coldNodes, "coldNodes");
-        // printEdges(hotEdges, "hotEdges");
-        // printEdges(coldEdges, "coldEdges");
-        // printEdges(ingressEdges, "ingressEdges");
-
         fillXUses(F, xUses);
-        // printMap_String_Set(xUses, "xUses");
-
         fillGens(F, gens);
-
-        // printMap_String_Set(gens, "Gens");
-
         fillKills(F, kills);
-        // printMap_String_Set(kills, "Kills");
 
         fillCandidates(hotNodes, xUses, candidates);
-        // printSet(candidates, "Candidates");
-
         fillAvinAvouts(candidates, gens, kills, ingressEdges, avouts, avins, F);
         fillRemovables(xUses, avins, hotNodes, removables, F);
-        // printMap_String_Set(avins, "avins");
-        // printMap_String_Set(avouts, "avouts");
-        // printMap_String_Set(removables, "Removables");
 
         compute_needin_needout(removables, gens, needins, needouts, F);
-        // printMap_String_Set(needins, "needins");
-        // printMap_String_Set(needouts, "needouts");
-
         compute_inserts(ingressEdges, needins, avouts, inserts);
-        // printMap_Edge_Set(inserts, "inserts");
 
         performRemoveAndInsert(inserts, allocas, F);
 
-        return false;
+        return true;
     }
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
