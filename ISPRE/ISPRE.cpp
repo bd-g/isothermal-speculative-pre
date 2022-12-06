@@ -36,6 +36,65 @@ struct ISPREPass : public FunctionPass {
     static constexpr double THRESHOLD = 0.8;
     ISPREPass() : FunctionPass(ID) {}
 
+    void printEdges(std::vector<std::pair<StringRef, StringRef>> edges, const char *currEdges) {
+        errs() << "*************\n" << currEdges << "\n*************\n";
+        for (auto i : edges) {
+            errs() << i.first << " - " << i.second << '\n';
+        }
+        errs() << '\n';
+    }
+
+    void printNodes(std::vector<StringRef> nodes, const char *currNodes) {
+        errs() << "*************\n" << currNodes << "\n*************\n";
+        for (auto i : nodes) {
+            errs() << i << '\n';
+        }
+        errs() << '\n';
+    }
+
+    void printSet(std::set<Instruction *> candidates, const char *currSet) {
+        errs() << "*************\n";
+        errs() << currSet << '\n';
+        errs() << "*************\n";
+        for (Instruction *candidate : candidates) {
+            errs() << *candidate << '\n';
+        }
+    }
+
+    void printMap_String_Set(std::map<StringRef, std::set<Instruction *>> mySet,
+                             const char *currSet) {
+        errs() << "*************\n";
+        errs() << currSet << '\n';
+        errs() << "*************\n";
+
+        for (auto &pair : mySet) {
+            errs() << pair.first << '\n';
+            std::set<Instruction *> values = pair.second;
+            for (Instruction *allInstrInBB : values) {
+                errs() << *allInstrInBB << '\n';
+            }
+            errs() << "end of block" << '\n';
+            errs() << '\n';
+        }
+    }
+
+    void printMap_Edge_Set(std::map<std::pair<StringRef, StringRef>, std::set<Instruction *>> mySet,
+                           const char *currSet) {
+        errs() << "*************\n";
+        errs() << currSet << '\n';
+        errs() << "*************\n";
+
+        for (auto &pair : mySet) {
+            errs() << pair.first.first << "-" << pair.first.second << "\n";
+            std::set<Instruction *> values = pair.second;
+            for (Instruction *allInstrInBB : values) {
+                errs() << *allInstrInBB << '\n';
+            }
+            errs() << "end of block" << '\n';
+            errs() << '\n';
+        }
+    }
+
     int calculateHotColdNodes(Function &F, std::map<StringRef, double> &freqs,
                               std::vector<StringRef> &hotNodes, std::vector<StringRef> &coldNodes) {
         BlockFrequencyInfo &bfi = getAnalysis<BlockFrequencyInfoWrapperPass>().getBFI();
@@ -92,74 +151,15 @@ struct ISPREPass : public FunctionPass {
         }
     }
 
-    void printIngressEdges(std::vector<std::pair<StringRef, StringRef>> &ingressEdges) {
-        errs() << "\n*************" << '\n';
-
-        errs() << "--Ingress Edges--" << '\n';
-        for (auto i : ingressEdges) {
-            errs() << i.first << " - " << i.second << '\n';
-        }
-        errs() << "*************\n" << '\n';
-    }
-
-    void printHotColdNodes(std::vector<StringRef> &hotNodes, std::vector<StringRef> &coldNodes) {
-        errs() << "\n*************" << '\n';
-
-        errs() << "--Hot Nodes--" << '\n';
-        for (auto i : hotNodes) {
-            errs() << i << '\n';
-        }
-
-        errs() << "\n--Cold Nodes--" << '\n';
-        for (auto i : coldNodes) {
-            errs() << i << '\n';
-        }
-        errs() << "*************\n" << '\n';
-    }
-
-    void printHotColdEdges(std::vector<std::pair<StringRef, StringRef>> &hotEdges,
-                           std::vector<std::pair<StringRef, StringRef>> &coldEdges) {
-        errs() << "\n*************" << '\n';
-        errs() << "--Hot Edges--" << '\n';
-        for (auto i : hotEdges) {
-            errs() << i.first << " - " << i.second << '\n';
-        }
-
-        errs() << "\n--Cold Edges--" << '\n';
-        for (auto i : coldEdges) {
-            errs() << i.first << " - " << i.second << '\n';
-        }
-
-        errs() << "*************\n" << '\n';
-    }
-
-    /*
-    GRETCHEN PART: (Necessity)
-    Initialize In(X) to 0 for all basic blocks X
-    change = 1
-    while (change) do
-    change = 0
-    for each basic block in procedure, X, do
-    old_NEEDIN = NEEDIN(X)
-    NEEDOUT(X) = Union(NeedIn(Y)) for all successors Y of X
-    NEEDIN(X) = NEEDOUT(X) - GEN(X) + REMOVABLE(X)
-    if (old_IN != IN(X)) then
-        change = 1
-    */
-
-    std::map<StringRef, std::set<StringRef>> needin_map;
-    std::map<StringRef, std::set<StringRef>> needout_map;
-    std::map<StringRef, std::set<StringRef>> gen_map;       // TODO
-    std::map<StringRef, std::set<StringRef>> removable_map; // TODO
-    std::map<StringRef, std::set<StringRef>> avout_map;     // TODO
-
-    void compute_needin_needout(std::map<StringRef, std::set<StringRef>> &needin_map,
-                                std::map<StringRef, std::set<StringRef>> &needout_map,
+    void compute_needin_needout(std::map<StringRef, std::set<Instruction *>> removables,
+                                std::map<StringRef, std::set<Instruction *>> gens,
+                                std::map<StringRef, std::set<Instruction *>> &needins,
+                                std::map<StringRef, std::set<Instruction *>> &needouts,
                                 Function &F) {
         // Init NEEDIN(X) to 0 for all basic blocks X
         for (BasicBlock &BB : F) {
-            std::set<StringRef> empty_set;
-            needin_map[BB.getName()] = empty_set;
+            std::set<Instruction *> empty_set;
+            needins[BB.getName()] = empty_set;
         }
 
         int change = 1;
@@ -167,28 +167,28 @@ struct ISPREPass : public FunctionPass {
             change = 0;
             for (BasicBlock &BB : F) {
                 auto bb_name = BB.getName();
-                std::set<StringRef> old_needin = needin_map[bb_name];
-                std::set<StringRef> needout;
+                std::set<Instruction *> old_needin = needins[bb_name];
+                std::set<Instruction *> needout;
 
                 // NEEDOUT(X) = Union(NeedIn(Y)) for all successors Y of X
                 for (BasicBlock *successor : successors(&BB)) {
-                    std::set<StringRef> succ_needin = needin_map[successor->getName()];
+                    std::set<Instruction *> succ_needin = needins[successor->getName()];
                     std::set_union(needout.begin(), needout.end(), succ_needin.begin(),
                                    succ_needin.end(), std::inserter(needout, needout.end()));
                 }
 
-                // NEEDIN(X) = NEEDOUT(X) - GEN(X) + REMOVABLE(X)
-                std::set<StringRef> needin;
-                std::set<StringRef> gen = gen_map[bb_name];
+                // NEEDIN(X) = (NEEDOUT(X) - GEN(X)) + REMOVABLE(X)
+                std::set<Instruction *> needin;
+                std::set<Instruction *> gen = gens[bb_name];
                 std::set_difference(needout.begin(), needout.end(), gen.begin(), gen.end(),
                                     std::inserter(needin, needin.end()));
-                std::set<StringRef> removable = removable_map[bb_name];
+                std::set<Instruction *> removable = removables[bb_name];
                 std::set_union(needin.begin(), needin.end(), removable.begin(), removable.end(),
                                std::inserter(needin, needin.end()));
 
                 // update needin and needout
-                needin_map[bb_name] = needin;
-                needout_map[bb_name] = needout;
+                needins[bb_name] = needin;
+                needouts[bb_name] = needout;
                 if (old_needin != needin) {
                     change = 1;
                 }
@@ -196,19 +196,20 @@ struct ISPREPass : public FunctionPass {
         }
     }
 
-    std::map<std::pair<StringRef, StringRef>, std::set<StringRef>> insert_map;
     void
-    compute_insert_map(std::map<std::pair<StringRef, StringRef>, std::set<StringRef>> &insert_map,
-                       std::vector<std::pair<StringRef, StringRef>> &ingressEdges) {
+    compute_inserts(std::vector<std::pair<StringRef, StringRef>> ingressEdges,
+                    std::map<StringRef, std::set<Instruction *>> needins,
+                    std::map<StringRef, std::set<Instruction *>> avouts,
+                    std::map<std::pair<StringRef, StringRef>, std::set<Instruction *>> &inserts) {
         for (auto itr = ingressEdges.begin(); itr != ingressEdges.end(); itr++) {
             StringRef u = itr->first;
             StringRef v = itr->second;
-            std::set<StringRef> insert_set;
-            std::set<StringRef> needin = needin_map[v];
-            std::set<StringRef> avout = avout_map[u];
+            std::set<Instruction *> insert;
+            std::set<Instruction *> needin = needins[v];
+            std::set<Instruction *> avout = avouts[u];
             std::set_difference(needin.begin(), needin.end(), avout.begin(), avout.end(),
-                                std::inserter(insert_set, insert_set.end()));
-            insert_map[{u, v}] = insert_set;
+                                std::inserter(insert, insert.end()));
+            inserts[*itr] = insert;
         }
     }
 
@@ -297,26 +298,10 @@ struct ISPREPass : public FunctionPass {
         }
     }
 
-    void printSets(std::map<StringRef, std::set<Instruction *>> &mySet, const char *currSet) {
-        errs() << "*************\n";
-        errs() << "Set " << currSet << '\n';
-        errs() << "*************\n";
-
-        for (auto &pair : mySet) {
-            errs() << pair.first << '\n';
-            std::set<Instruction *> values = pair.second;
-            for (Instruction *allInstrInBB : values) {
-                errs() << *allInstrInBB << '\n';
-            }
-            errs() << "end of block" << '\n';
-            errs() << '\n';
-        }
-    }
-
-    // If expression e is of the form x=a op b, for each of the operands a and b, only look after e
-    // in that BB. Get loads from block starting till e, and their corresponding sources. For each
-    // load, look through all stores for matching destination of store after e If found then e is
-    // killed and does not go into gens
+    // If expression e is of the form x=a op b, for each of the operands a and b, only look
+    // after e in that BB. Get loads from block starting till e, and their corresponding
+    // sources. For each load, look through all stores for matching destination of store after e
+    // If found then e is killed and does not go into gens
     void fillGens(Function &F, std::map<StringRef, std::set<Instruction *>> &gens) {
 
         for (BasicBlock &BB : F) {
@@ -379,8 +364,8 @@ struct ISPREPass : public FunctionPass {
                     }
 
                     if (isThisExprKilled == 0) {
-                        if (gens.find(BB.getName()) ==
-                            gens.end()) // if the current BB doesnt have entry in gens, create it
+                        if (gens.find(BB.getName()) == gens.end()) // if the current BB doesnt have
+                                                                   // entry in gens, create it
                         {
                             std::set<Instruction *> instructionToBeAdded;
                             instructionToBeAdded.insert(&instr);
@@ -402,13 +387,17 @@ struct ISPREPass : public FunctionPass {
         }
     }
 
-    // if e is not in xuses and not in gens, it goes to kills
-    void fillKills(Function &F, std::map<StringRef, std::set<Instruction *>> &kills,
-                   std::map<StringRef, std::set<Instruction *>> &xUses,
-                   std::map<StringRef, std::set<Instruction *>> &gens) {
+    // for each expression e of the type x op y, get its operands and search in full function if
+    // there is a store to any of them. If yes, then add to kills set if operand is of type load
+    // instruction, then get it's operand and search for store with same dest if not of type
+    // load instruction but of type mul,sub,add then get it's operands and search for load. Then
+    // get load's operand and search for corresponding store with same dest. If found, enter
+    // into kills set
+    void fillKills(Function &F, std::map<StringRef, std::set<Instruction *>> &kills) {
         for (BasicBlock &BB : F) {
 
             for (auto &instr : BB) {
+                // errs() << instr << '\n';
                 switch (instr.getOpcode()) {
 
                 case Instruction::Add:
@@ -424,31 +413,88 @@ struct ISPREPass : public FunctionPass {
                 case Instruction::Or:
                 case Instruction::Xor:
                 case Instruction::SRem: {
-                    int doesInstrExistInXUses = 0;
-                    int doesInstrExistInGens = 0;
-                    if (xUses.find(BB.getName()) != xUses.end()) {
-                        std::set<Instruction *> getInstr = xUses[BB.getName()];
-                        if (getInstr.find(&instr) != getInstr.end()) {
-                            doesInstrExistInXUses = 1;
-                        }
-                    }
-                    if (gens.find(BB.getName()) != gens.end()) {
-                        std::set<Instruction *> getInstr = gens[BB.getName()];
-                        if (getInstr.find(&instr) != getInstr.end()) {
-                            doesInstrExistInGens = 1;
-                        }
-                    }
+                    int numOfOperands = instr.getNumOperands();
+                    for (int idx = 0; idx < numOfOperands; idx++) {
+                        Value *currentOperand = instr.getOperand(idx);
+                        Instruction *getOperandInstr =
+                            dyn_cast<Instruction>(currentOperand); // crashing if its a constant
+                                                                   // so check if not nullptr
 
-                    if (doesInstrExistInGens == 0 && doesInstrExistInXUses == 0) {
-                        errs() << " not there in xuses or gens" << '\n';
-                        if (kills.find(BB.getName()) == kills.end()) {
-                            std::set<Instruction *> instructionToBeAdded;
-                            instructionToBeAdded.insert(&instr);
-                            kills[BB.getName()] = instructionToBeAdded;
-                        } else {
-                            std::set<Instruction *> instructionToBeAdded = kills[BB.getName()];
-                            instructionToBeAdded.insert(&instr);
-                            kills[BB.getName()] = instructionToBeAdded;
+                        if (getOperandInstr != nullptr &&
+                            getOperandInstr->getOpcode() ==
+                                Instruction::Load) // get load for each operand
+                        {
+                            Value *loadOperand = getOperandInstr->getOperand(0);
+
+                            for (BasicBlock &BB1 : F) {
+
+                                for (auto &instr1 : BB1) {
+                                    if (instr1.getOpcode() == Instruction::Store) {
+                                        Value *storeDest = instr1.getOperand(1);
+                                        if (storeDest ==
+                                            loadOperand) // enter e into kill set of BB1 if
+                                                         // store dest is same as load source
+                                        {
+                                            if (kills.find(BB1.getName()) == kills.end()) {
+                                                std::set<Instruction *> instructionToBeAdded;
+                                                instructionToBeAdded.insert(&instr);
+                                                kills[BB1.getName()] = instructionToBeAdded;
+                                            } else {
+                                                std::set<Instruction *> instructionToBeAdded =
+                                                    kills[BB1.getName()];
+                                                instructionToBeAdded.insert(&instr);
+                                                kills[BB1.getName()] = instructionToBeAdded;
+                                            }
+                                            break; // go to next BB and check
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (getOperandInstr != nullptr &&
+                                   (getOperandInstr->getOpcode() == Instruction::Mul ||
+                                    getOperandInstr->getOpcode() == Instruction::Add ||
+                                    getOperandInstr->getOpcode() == Instruction::Sub)) {
+                            int numOfOperands1 = getOperandInstr->getNumOperands();
+                            for (int idx1 = 0; idx1 < numOfOperands1; idx1++) {
+                                Value *currentOperand1 = getOperandInstr->getOperand(idx1);
+                                Instruction *getOperandInstr1 =
+                                    dyn_cast<Instruction>(currentOperand1);
+                                if (getOperandInstr1 != nullptr &&
+                                    getOperandInstr1->getOpcode() == Instruction::Load) {
+                                    Value *loadOperand1 = getOperandInstr1->getOperand(0);
+
+                                    for (BasicBlock &BB2 : F) {
+
+                                        for (auto &instr2 : BB2) {
+                                            if (instr2.getOpcode() == Instruction::Store) {
+
+                                                Value *storeDest1 = instr2.getOperand(1);
+                                                if (storeDest1 ==
+                                                    loadOperand1) // enter e into kill set of
+                                                                  // BB1 if store dest is same
+                                                                  // as load source
+                                                {
+                                                    if (kills.find(BB2.getName()) == kills.end()) {
+                                                        std::set<Instruction *>
+                                                            instructionToBeAdded1;
+                                                        instructionToBeAdded1.insert(&instr);
+                                                        kills[BB2.getName()] =
+                                                            instructionToBeAdded1;
+                                                    } else {
+                                                        std::set<Instruction *>
+                                                            instructionToBeAdded1 =
+                                                                kills[BB2.getName()];
+                                                        instructionToBeAdded1.insert(&instr);
+                                                        kills[BB2.getName()] =
+                                                            instructionToBeAdded1;
+                                                    }
+                                                    break; // go to next BB and check
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -464,23 +510,21 @@ struct ISPREPass : public FunctionPass {
 
     void fillCandidates(std::vector<StringRef> hotNodes,
                         std::map<StringRef, std::set<Instruction *>> &xUses,
-                        std::map<StringRef, std::set<Instruction *>> &candidates) {
+                        std::set<Instruction *> &candidates) {
         for (auto &xUseBB : xUses) {
             if (std::find(hotNodes.begin(), hotNodes.end(), xUseBB.first) != hotNodes.end()) {
-                candidates[xUseBB.first] = xUseBB.second;
+                std::set_union(candidates.begin(), candidates.end(), xUseBB.second.begin(),
+                               xUseBB.second.end(), std::inserter(candidates, candidates.end()));
             }
         }
     }
 
-    void fillRemovable(std::map<StringRef, std::set<Instruction *>> &candidates,
-                       std::map<StringRef, std::set<Instruction *>> gens,
-                       std::map<StringRef, std::set<Instruction *>> kills,
-                       std::map<StringRef, std::set<Instruction *>> xUses,
-                       std::map<StringRef, std::set<Instruction *>> removables,
-                       std::vector<StringRef> hotNodes, Function &F) {
-        std::map<StringRef, std::set<Instruction *>> avouts;
-        std::map<StringRef, std::set<Instruction *>> avins;
-
+    void fillAvinAvouts(std::set<Instruction *> candidates,
+                        std::map<StringRef, std::set<Instruction *>> gens,
+                        std::map<StringRef, std::set<Instruction *>> kills,
+                        std::vector<std::pair<StringRef, StringRef>> ingressEdges,
+                        std::map<StringRef, std::set<Instruction *>> &avouts,
+                        std::map<StringRef, std::set<Instruction *>> &avins, Function &F) {
         // Init AVOUT(b) to 0 for all basic blocks X
         for (BasicBlock &BB : F) {
             std::set<Instruction *> empty_set;
@@ -494,14 +538,27 @@ struct ISPREPass : public FunctionPass {
                 auto bb_name = BB.getName();
                 std::set<Instruction *> old_avout = avouts[bb_name];
                 std::set<Instruction *> new_avin;
+                bool new_avin_initialized = false;
 
                 // AVIN(b) = INTERSECTION(Candidates if ingress edge, otherwise AVOUT(p))
-                // FIXME, need to include candidates
                 for (BasicBlock *predecessor : predecessors(&BB)) {
-                    std::set<Instruction *> pred_avout = avouts[predecessor->getName()];
-                    std::set_intersection(new_avin.begin(), new_avin.end(), pred_avout.begin(),
-                                          pred_avout.end(),
-                                          std::inserter(new_avin, new_avin.end()));
+                    std::set<Instruction *> intersect;
+                    std::pair<StringRef, StringRef> edge =
+                        std::make_pair(predecessor->getName(), BB.getName());
+                    if (std::find(ingressEdges.begin(), ingressEdges.end(), edge) !=
+                        ingressEdges.end()) {
+                        intersect = candidates;
+                    } else {
+                        intersect = avouts[predecessor->getName()];
+                    }
+                    if (new_avin_initialized) {
+                        std::set_intersection(new_avin.begin(), new_avin.end(), intersect.begin(),
+                                              intersect.end(),
+                                              std::inserter(new_avin, new_avin.end()));
+                    } else {
+                        new_avin = intersect;
+                        new_avin_initialized = true;
+                    }
                 }
 
                 // AVOUT(b) = (AVIN(b) - KILL(b)) U GEN(b)
@@ -521,7 +578,12 @@ struct ISPREPass : public FunctionPass {
                 }
             }
         }
+    }
 
+    void fillRemovables(std::map<StringRef, std::set<Instruction *>> xUses,
+                        std::map<StringRef, std::set<Instruction *>> avins,
+                        std::vector<StringRef> hotNodes,
+                        std::map<StringRef, std::set<Instruction *>> &removables, Function &F) {
         for (BasicBlock &BB : F) {
             auto bb_name = BB.getName();
             if (std::find(hotNodes.begin(), hotNodes.end(), bb_name) != hotNodes.end()) {
@@ -546,25 +608,49 @@ struct ISPREPass : public FunctionPass {
         std::map<StringRef, std::set<Instruction *>> xUses;
         std::map<StringRef, std::set<Instruction *>> gens;
         std::map<StringRef, std::set<Instruction *>> kills;
+        std::set<Instruction *> candidates;
+        std::map<StringRef, std::set<Instruction *>> avins;
+        std::map<StringRef, std::set<Instruction *>> avouts;
+        std::map<StringRef, std::set<Instruction *>> removables;
+        std::map<StringRef, std::set<Instruction *>> needins;
+        std::map<StringRef, std::set<Instruction *>> needouts;
+        std::map<std::pair<StringRef, StringRef>, std::set<Instruction *>> inserts;
 
         int maxCount = calculateHotColdNodes(F, freqs, hotNodes, coldNodes);
         calculateHotColdEdges(F, freqs, hotEdges, coldEdges, maxCount);
-
-        printHotColdNodes(hotNodes, coldNodes);
-        printHotColdEdges(hotEdges, coldEdges);
-
         calculateIngressEdges(coldEdges, hotNodes, coldNodes, ingressEdges);
-        printIngressEdges(ingressEdges);
+
+        printNodes(hotNodes, "hotNodes");
+        printNodes(coldNodes, "coldNodes");
+        printEdges(hotEdges, "hotEdges");
+        printEdges(coldEdges, "coldEdges");
+        printEdges(ingressEdges, "ingressEdges");
 
         fillXUses(F, xUses);
-        printSets(xUses, "xUses");
+        printMap_String_Set(xUses, "xUses");
 
         fillGens(F, gens);
 
-        printSets(gens, "Gens");
+        printMap_String_Set(gens, "Gens");
 
-        fillKills(F, kills, xUses, gens);
-        printSets(kills, "Kills");
+        fillKills(F, kills);
+        printMap_String_Set(kills, "Kills");
+
+        fillCandidates(hotNodes, xUses, candidates);
+        printSet(candidates, "Candidates");
+
+        fillAvinAvouts(candidates, gens, kills, ingressEdges, avouts, avins, F);
+        fillRemovables(xUses, avins, hotNodes, removables, F);
+        printMap_String_Set(avins, "avins");
+        printMap_String_Set(avouts, "avouts");
+        printMap_String_Set(removables, "Removables");
+
+        compute_needin_needout(removables, gens, needins, needouts, F);
+        printMap_String_Set(needins, "needins");
+        printMap_String_Set(needouts, "needouts");
+
+        compute_inserts(ingressEdges, needins, avouts, inserts);
+        printMap_Edge_Set(inserts, "inserts");
 
         return false;
     }
@@ -574,9 +660,6 @@ struct ISPREPass : public FunctionPass {
         AU.addRequired<BlockFrequencyInfoWrapperPass>();
         AU.addRequired<LoopInfoWrapperPass>();
     }
-
-  private:
-    static int dummyVar;
 };
 } // namespace ISPRE
 

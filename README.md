@@ -20,7 +20,7 @@ This project partially fulfills the requirements for the EECS 583 Compilers cour
     ```
 3. Navigate to the `benchmarks` folder, and use the `get_statistics.sh` script to do profiling on any C file with and without ISPRE. You can view documentation for the script by running `./get_statistics.sh -h`. Example:
     ```
-    $ ./get_statistics.sh -d hw1correct1
+    $ ./get_statistics.sh -D test9
     ```
 
 ## Roadmap
@@ -29,33 +29,6 @@ This project partially fulfills the requirements for the EECS 583 Compilers cour
     - O0 optimization 
     - O0 optimization plus gvn pass
     - O0 optimization plus our custom ISPRE pass
-
-## Implementation Notes
-
-#### Xuses, Gens, and Kills
-
-A few notes:
-
-1. Currently xUses, Gens, Kills works only for expression type x op y where op can be any operator like shift right/left, arithmetic, etc. As per discussion, I have ignored sef updates, stores, loads, branch and branch ends. So far no special handling for x=Constant and compares. x and/or y can be modified before or after e.
-2. xUses: Current code looks within BB and gets operands of e. It then looks for loads before e and gets the source of loads. It then checks if there are any stores into this source of loads before e. If yes, then e is not added to xUses set.
-3. Gens: Same as above except that it looks for loads before e and stores after e.
-4. Kills: If e is not in gens and not in xUses, then it has been added to kills.
-5. Maybe helpful if we can first get this basic case working end to end (x op y).
-
-#### Psuedo Code for Necessity
-
-```
-Initialize In(X) to 0 for all basic blocks X
-change = 1
-while (change) do
-    change = 0
-    for each basic block in procedure, X, do
-        old_NEEDIN = NEEDIN(X)
-        NEEDOUT(X) = Union(NeedIn(Y)) for all successors Y of X
-        NEEDIN(X) = NEEDOUT(X) - GEN(X) + REMOVABLE(X)
-        if (old_IN != IN(X)) then
-            change = 1
-```
 
 ## Bibliography
 
