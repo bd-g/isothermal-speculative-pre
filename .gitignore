@@ -35,4 +35,4 @@
 build/
 
 # VS Code Settings
-.vscode/
+**/.vscode/
