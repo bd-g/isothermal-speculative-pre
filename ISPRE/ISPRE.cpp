@@ -524,23 +524,31 @@ struct ISPREPass : public FunctionPass {
 
     void fillCandidates(std::vector<StringRef> hotNodes,
                         std::map<StringRef, std::set<Instruction *>> &xUses,
-                        std::map<StringRef, std::set<Instruction *>> &candidates) {
+                        std::set<Instruction *> &candidates) {
         for (auto &xUseBB : xUses) {
             if (std::find(hotNodes.begin(), hotNodes.end(), xUseBB.first) != hotNodes.end()) {
-                candidates[xUseBB.first] = xUseBB.second;
+                std::set_union(candidates.begin(), candidates.end(), xUseBB.second.begin(),
+                               xUseBB.second.end(), std::inserter(candidates, candidates.end()));
             }
         }
     }
 
-    void fillRemovable(std::map<StringRef, std::set<Instruction *>> &candidates,
+    void printCandidates(std::set<Instruction *> candidates) {
+        errs() << "***********\nCandidates\n";
+        for (Instruction *candidate : candidates) {
+            errs() << *candidate << '\n';
+        }
+    }
+
+    void fillRemovable(std::set<Instruction *> candidates,
                        std::map<StringRef, std::set<Instruction *>> gens,
                        std::map<StringRef, std::set<Instruction *>> kills,
                        std::map<StringRef, std::set<Instruction *>> xUses,
-                       std::map<StringRef, std::set<Instruction *>> removables,
+                       std::vector<std::pair<StringRef, StringRef>> ingressEdges,
+                       std::map<StringRef, std::set<Instruction *>> &avouts,
+                       std::map<StringRef, std::set<Instruction *>> &avins,
+                       std::map<StringRef, std::set<Instruction *>> &removables,
                        std::vector<StringRef> hotNodes, Function &F) {
-        std::map<StringRef, std::set<Instruction *>> avouts;
-        std::map<StringRef, std::set<Instruction *>> avins;
-
         // Init AVOUT(b) to 0 for all basic blocks X
         for (BasicBlock &BB : F) {
             std::set<Instruction *> empty_set;
@@ -554,14 +562,27 @@ struct ISPREPass : public FunctionPass {
                 auto bb_name = BB.getName();
                 std::set<Instruction *> old_avout = avouts[bb_name];
                 std::set<Instruction *> new_avin;
+                bool new_avin_initialized = false;
 
                 // AVIN(b) = INTERSECTION(Candidates if ingress edge, otherwise AVOUT(p))
-                // FIXME, need to include candidates
                 for (BasicBlock *predecessor : predecessors(&BB)) {
-                    std::set<Instruction *> pred_avout = avouts[predecessor->getName()];
-                    std::set_intersection(new_avin.begin(), new_avin.end(), pred_avout.begin(),
-                                          pred_avout.end(),
-                                          std::inserter(new_avin, new_avin.end()));
+                    std::set<Instruction *> intersect;
+                    std::pair<StringRef, StringRef> edge =
+                        std::make_pair(predecessor->getName(), BB.getName());
+                    if (std::find(ingressEdges.begin(), ingressEdges.end(), edge) !=
+                        ingressEdges.end()) {
+                        intersect = candidates;
+                    } else {
+                        intersect = avouts[predecessor->getName()];
+                    }
+                    if (new_avin_initialized) {
+                        std::set_intersection(new_avin.begin(), new_avin.end(), intersect.begin(),
+                                              intersect.end(),
+                                              std::inserter(new_avin, new_avin.end()));
+                    } else {
+                        new_avin = intersect;
+                        new_avin_initialized = true;
+                    }
                 }
 
                 // AVOUT(b) = (AVIN(b) - KILL(b)) U GEN(b)
@@ -606,7 +627,9 @@ struct ISPREPass : public FunctionPass {
         std::map<StringRef, std::set<Instruction *>> xUses;
         std::map<StringRef, std::set<Instruction *>> gens;
         std::map<StringRef, std::set<Instruction *>> kills;
-        std::map<StringRef, std::set<Instruction *>> candidates;
+        std::set<Instruction *> candidates;
+        std::map<StringRef, std::set<Instruction *>> avins;
+        std::map<StringRef, std::set<Instruction *>> avouts;
         std::map<StringRef, std::set<Instruction *>> removables;
 
         int maxCount = calculateHotColdNodes(F, freqs, hotNodes, coldNodes);
@@ -629,9 +652,12 @@ struct ISPREPass : public FunctionPass {
         printSets(kills, "Kills");
 
         fillCandidates(hotNodes, xUses, candidates);
-        printSets(candidates, "Candidates");
+        printCandidates(candidates);
 
-        fillRemovable(candidates, gens, kills, xUses, removables, hotNodes, F);
+        fillRemovable(candidates, gens, kills, xUses, ingressEdges, avouts, avins, removables,
+                      hotNodes, F);
+        printSets(avins, "avins");
+        printSets(avouts, "avouts");
         printSets(removables, "Removables");
 
         return false;
