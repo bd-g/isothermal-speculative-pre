@@ -1,0 +1,53 @@
+@inproceedings{ispre_paper,
+author = {Horspool, R. Nigel and Pereira, David J. and Scholz, Bernhard},
+title = {Fast Profile-Based Partial Redundancy Elimination},
+year = {2006},
+isbn = {3540409270},
+publisher = {Springer-Verlag},
+address = {Berlin, Heidelberg},
+url = {https://doi.org/10.1007/11860990_22},
+doi = {10.1007/11860990_22},
+abstract = {Partial Redundancy Elimination (PRE) is a standard program optimization which removes redundant computations via Code Motion. It subsumes and generalizes the optimizations of Global Common Subexpression Elimination (GCSE) and Loop Invariant Code Motion (LICM). Recent work has generalized PRE to become Speculative PRE (SPRE), which uses estimates of execution frequencies to find the optimal places in a program to perform computations. However, the analysis performed by the compiler is computationally intensive and hence impractical for just-in-time (JIT) compilers.This paper introduces a novel approach which abandons a guarantee of optimality in favour of simplicity and speed of analysis. This new approach, called Isothermal SPRE, achieves results which are close to optimal in practice, yet its analysis time is at least as good as current compiler techniques for code motion. It is a technique suitable for use in JIT compilers.},
+booktitle = {Proceedings of the 7th Joint Conference on Modular Programming Languages},
+pages = {362–376},
+numpages = {15},
+location = {Oxford, UK},
+series = {JMLC'06}
+}
+
+@article{10.1145/773473.178257,
+author = {Briggs, Preston and Cooper, Keith D.},
+title = {Effective Partial Redundancy Elimination},
+year = {1994},
+issue_date = {June 1994},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {29},
+number = {6},
+issn = {0362-1340},
+url = {https://doi.org/10.1145/773473.178257},
+doi = {10.1145/773473.178257},
+abstract = {Partial redundancy elimination is a code optimization with a long history of literature and implementation. In practice, its effectiveness depends on issues of naming and code shape. This paper shows that a combination of global reassociation and global value numbering can increase the effectiveness of partial redundancy elimination. By imposing a discipline on the choice of names and the shape of expressions, we are able to expose more redundancies.As part of the work, we introduce a new algorithm for global reassociation of expressions. It uses global information to reorder expressions, creating opportunities for other optimizations. The new algorithm generalizes earlier work that ordered FORTRAN array address expressions to improve otpimization [25].},
+journal = {SIGPLAN Not.},
+month = {jun},
+pages = {159–170},
+numpages = {12}
+}
+
+@inproceedings{pre_paper,
+author = {Briggs, Preston and Cooper, Keith D.},
+title = {Effective Partial Redundancy Elimination},
+year = {1994},
+isbn = {089791662X},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/178243.178257},
+doi = {10.1145/178243.178257},
+abstract = {Partial redundancy elimination is a code optimization with a long history of literature and implementation. In practice, its effectiveness depends on issues of naming and code shape. This paper shows that a combination of global reassociation and global value numbering can increase the effectiveness of partial redundancy elimination. By imposing a discipline on the choice of names and the shape of expressions, we are able to expose more redundancies.As part of the work, we introduce a new algorithm for global reassociation of expressions. It uses global information to reorder expressions, creating opportunities for other optimizations. The new algorithm generalizes earlier work that ordered FORTRAN array address expressions to improve otpimization [25].},
+booktitle = {Proceedings of the ACM SIGPLAN 1994 Conference on Programming Language Design and Implementation},
+pages = {159–170},
+numpages = {12},
+location = {Orlando, Florida, USA},
+series = {PLDI '94}
+}
+
