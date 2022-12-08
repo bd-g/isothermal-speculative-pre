@@ -1,0 +1,228 @@
+\documentclass[sigplan,screen]{acmart}
+
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{soul}
+\usepackage{listings}
+\usepackage{hyperref}
+
+\setcopyright{acmcopyright}
+\copyrightyear{2022}
+\acmYear{2022}
+\acmDOI{XXXXXXX.XXXXXXX}
+
+\acmConference[UM EECS 583 F'22]{University of Michigan EECS 583 Advanced Compilers Fall 2022}
+{Dec 14, 2022, Ann Arbor, MI, USA}
+
+% Title Page
+\title{Isothermal Speculative Partial Redundancy Elimination}
+
+% insert more authors like this
+\author{Brent George}
+\email{bdgeorge@umich.edu}
+\affiliation{%
+	\institution{University of Michigan}
+	\streetaddress{2260 Hayward Street}
+	\city{Ann Arbor}
+	\state{Michigan}
+	\country{United States}}
+
+\author{Sahil Surapaneni}
+\email{ssurapan@umich.edu}
+\affiliation{%
+	\institution{University of Michigan}
+	\streetaddress{2260 Hayward Street}
+	\city{Ann Arbor}
+	\state{Michigan}
+	\country{United States}}
+
+\author{Priya Thanneermalai}
+\email{tpriya@umich.edu}
+\affiliation{%
+	\institution{University of Michigan}
+	\streetaddress{2260 Hayward Street}
+	\city{Ann Arbor}
+	\state{Michigan}
+	\country{United States}}
+
+\author{Gretchen Zheng}
+\email{zhengji@umich.edu}
+\affiliation{%
+	\institution{University of Michigan}
+	\streetaddress{2260 Hayward Street}
+	\city{Ann Arbor}
+	\state{Michigan}
+	\country{United States}}
+
+
+\begin{document}
+
+	\begin{abstract}	
+		Partial Redundancy Elimination(PRE) is a standard program optimization that removes redundant computations via Code Motion. Traditional PRE is very conservative and does not account for hot or cold paths in the code. This causes traditional PRE implementations to miss potentially lucrative optimization opportunities. In our final project, we intend to implement a novel and efficient optimization of PRE: Isothermal Speculative Partial Redundancy Elimination(ISPRE), as proposed by R. Nigel Horspool et al \cite{ispre_paper}. While the classical PRE analysis is performed without any knowledge of the relative frequencies of execution of the different paths, ISPRE takes advantage of the program profiling information and is executed as an approximate technique of the classic code motion method. Our results show speedup over several benchmarks, as well as optimizing test cases that are ignored by traditional PRE.
+	\end{abstract}
+	
+	
+	\maketitle
+	
+	\section{Introduction}
+	\label{sec:introduction}
+
+    Traditional Partial Redundancy Elimination is an optimization that allows for more aggressive use of redundancy elimination in the code.
+
+    Redundancy elimination is the process of removing redundant computation that may be found across basic blocks in the code. For example, if 50 * 50 is computed twice, the compiler can change the IR to compute it just once and copy this result to the two desired destinations. This can provide incremental gains in overall run time with nearly zero code size expansion.
+
+    Traditional PRE has two main limitations \cite{pre_paper}. The first is that front-end compilers can modify naming of variables in unique ways that may obscure potential redundant computations. The second is that the code shape, such as decisions about associativity and ordering of computational chains, can make certain redundancies non-obvious. Briggs and Cooper attempt to partially address these concerns in 1994 with global value numbering and global reassociation \cite{pre_paper}.
+
+    Global value numbering has since become a common strategy to improve the scope of PRE. The gvn pass in the LLVM compiler (gvn) is a library pass that combines global value numbering with redundant load elimination. The gvn pass is included in the O2 (and higher) levels of optimization in clang and gcc.
+
+    PRE is traditionally applied very conservatively. Traditional PRE does not use any profiling data, and will not optimize hot paths at the expense of cold paths - it will only optimize if there is no code size increase for any path. This can lead to missed optimization opportunities when considering control flows. 
+
+    Speculative partial redundancy elimination (SPRE) is a technique that explicitly uses profiling information to find more aggressive optimization opportunities. It can be very effective, but very complex and difficult to implement, and as such many compilers stick to traditional PRE passes even if SPRE can provide large performance gains.
+
+    SPRE is much more computationally expensive than PRE as well. Its analysis time can be very long compared to other code motion optimizations. Due to the complexity of SPRE's implementation, and the computational expense, Horspool et al. developed a novel approach called Isothermal Speculative Partial Redundancy Elimination (ISPRE) that delivers results similar to SPRE in practice, yet its analysis time is at least as good as current compiler techniques for code motion \cite{ispre_paper}. Our project is an implementation of ISPRE as described in their paper, as realized in a custom LLVM pass. 
+
+    \section{Methods}
+	\label{sec:methods}
+
+    ISPRE uses profile information to divide a CFG $G$ into two subgraphs - a hot region $G_{hot}$ consisting of the nodes and the edges executed more frequently than a given threshold frequency $\theta$, and a cold region $G_{cold}$ consisting of the remaining nodes and edges. 
+    
+    More formally, 
+ 
+    $G_{hot} = <N_H, E_H>$  
+    
+    $G_{cold} = <N_C, E_C>$
+
+    We can then define Ingress edges as
+
+    $\text{Ingress} = \{(u,v | u \in N_C \wedge v \in N_H \}$   
+
+    ISPRE works by inserting expressions on edges in the Ingress set, which will then make some expressions in hot nodes become fully redundant. If those fully redundant expressions are then replaced by references to previously saved values of those same expressions, we have achieved code motion from $G_hot$ to $G_cold$. This may increase the code size, but will optimize the hot path and lead to runtime performance gains.
+
+    This code motion is performed based on the results of two analyses: removability and necessity. Removability determines instances of computations in the hot region than can be deleted, and necessity determines edges in the Ingress set where these deleted computations must be inserted to maintain correctness of the code. Both of these analysis can be performed through dataflow analysis. 
+
+    \subsubsection{Removability Analysis}
+
+    Removability analysis can be done by computed XUse, Gen, and Kill sets for each basic block in a function (or loop, or whatever scope you determine. Our implementation is a LLVM FunctionPass, and so analyses functions independently). These sets inform a forward dataflow analyses that create a set of removable expressions. The following equations define each of these terms. 
+    
+    \begin{multline*}
+    \textrm{XUSES}(b) \overset{def}{=} \{\ e\ | \textrm{ expression } e \textrm{ occurs in } b \textrm{ and is not }\\ \textrm{preceded by any redefinitions of operands of } e\ \}
+    \end{multline*}
+    \begin{multline*}
+    \textrm{GEN}(b) \overset{def}{=} \{\ e\ | \textrm{ expression } e \textrm{ occurs in } b \textrm{ and is not }\\ \textrm{followed by any redefinitions of operands of } e\ \}
+    \end{multline*}    
+    \begin{multline*}
+    \textrm{KILL}(b) \overset{def}{=} \{\ e\ | \textrm{ block } b \textrm{ contains a statement which } \\ \textrm{maybe redefine an operand of } e\ \}
+    \end{multline*}
+     
+    \begin{multline*}
+    \forall b \in N:\\
+    \textrm{AVOUT}(b) = (\textrm{AVIN}(b) - \textrm{KILL}(b)) \cup \textrm{GEN}(b)\\
+    \textrm{AVIN}(b) = \underset{p \in preds(b)}{\bigcap}
+    \begin{cases}
+      \text{Candidates} & \text{if $(p,b) \in $ Ingress}\\
+      \text{AVOUT}($p$)& \text{otherwise}
+    \end{cases}  
+    \end{multline*}
+    \begin{multline*}
+    \forall b \in N_H:\\  
+    \textrm{Removable}(b) = \textrm{AVIN}(b) \cap \textrm{XUSES}(b)
+    \end{multline*}
+
+    \subsubsection{Necessity Analysis}
+    
+    The solutions for the \emph{Removable} sets assume that computations of all candidate expressions are available on the \emph{Ingress} edges. However, some candidate expressions are not necessary to insert on the ingress edges as they might be useless or redundant. 
+
+    Necessity analysis is thus conducted to compute which expressions are required to be inserted on the ingress edges to maintain correctness. The set of expressions to be inserted on each ingress edge can be computed by backwards dataflow analyses, using the following equations.
+
+    \begin{multline*}
+    \forall b \in N_H:\\
+    \textrm{NEEDIN}(b) = (\textrm{NEEDOUT}(b) - \textrm{GEN}(b)) \cup \textrm{Removable}(b)\\
+    \textrm{NEEDOUT}(b) = \underset{s \in succs(b)}{\bigcup} \textrm{NEEDIN}(s)
+    \end{multline*}
+    \begin{multline*}
+    \forall (u,v) \in \textrm{Ingress}:\\  
+    \textrm{Insert}(u,v) = \textrm{NEEDIN}(v) - \textrm{AVOUT}(u)
+    \end{multline*}
+
+    \section{Results}
+	\label{sec:results}
+
+	\begin{table*}[]
+	\begin{tabular}{|l|l|l|l|l|}
+	\hline
+	Test Case & GVN Runtime & GVN IR Size & ISPRE Runtime & ISPRE IR Size \\ \hline \hline
+	ISPRE\_1  & 0.354s & 3504b & 0.288s & 3524b \\ \hline
+	ISPRE\_2  & 0.376s & 3504b & 0.185s & 3524b \\ \hline
+	ISPRE\_3  & 0.061s & 3932b & 0.022s & 3984b \\ \hline
+	ISPRE\_4  & 0.376s & 3524b & 0.189s & 3540b \\ \hline
+	\end{tabular}
+	\caption{Test Results Against Custom Benchmarks}
+	\label{tab:results}
+	\end{table*}
+
+    We created four custom C files as test cases, listed in the appendix (Section \ref{app:code}). We compiled each once with just the LLVM global value numbering and dead code elimination passes, and once with just our custom ISPRE pass and dead code elimination pass (link to code listed in Section \ref{app:code}). The results are listed in Table \ref{tab:results}.
+
+    Our custom pass optimizes each case, whereas traditional PRE cannot optimize it due to the partial redundancy only being accessible by recognizing hot and cold regions. This is reflecting in the runtime difference between the two passes for each of the test cases.
+
+    The underlying code motion is demonstrated by Figures \ref{fig:no_ispre_cfg} and \ref{fig:ispre_cfg} in the Appendix. Code motion of an expensive multiply operation has been achieved from hot node $if.else$ into cold node $if.then$.
+
+  \section{Future Work}
+	\label{sec:futureWork}
+ Though our pass is not as computationally intensive as Speculative PRE, there are still a few improvements that we could make to our ISPRE pass. Our results are only performed using a single pass on the IR. With minimal changes to the code, we could perform multiple passes on the IR to expose more opportunities for redundancy elimination. Horspool et al. mention that there are diminishing returns for multiple passes \cite{ispre_paper}, but further work could quantify this further. 
+
+ Another improvement that we suggest is exploring the importance of the hot/cold threshold $\theta$. Further research can be done on tuning this hyper parameter to determine the optimal value across a broad spectrum of test cases.
+
+ Other future work includes analysis of register pressure and lifetime issues, and incorporating unsafe expressions into the framework.
+
+ 
+
+ \section{Appendix}
+	\label{sec:appendix}
+
+ \subsection{Source Code}
+ \label{app:code}
+
+ Full source code for the LLVM pass, benchmarks, and tests can be found on GitHub (\url{https://github.com/bd-g/isothermal-speculative-pre/}).
+
+\lstinputlisting[label = {alg:ispre_test1}, caption = {ISPRE\_1 Test Case Source Code}]
+{../benchmarks/ispre_test1.c}
+
+\lstinputlisting[label = {alg:ispre_test2}, caption = {ISPRE\_2 Test Case Source Code}]
+{../benchmarks/ispre_test2.c}
+
+\lstinputlisting[label = {alg:ispre_test3}, caption = {ISPRE\_3 Test Case Source Code}]
+{../benchmarks/ispre_test3.c}
+
+\lstinputlisting[label = {alg:ispre_test4}, caption = {ISPRE\_4 Test Case Source Code}]
+{../benchmarks/ispre_test4.c}
+
+\subsection{Control Flow Graphs}
+
+See Figures \ref{fig:no_ispre_cfg} and \ref{fig:ispre_cfg}.
+
+\begin{figure*}
+\begin{center}
+\includegraphics[width=0.95\linewidth]{ispre_test1.cfg.pdf}
+\caption{CFG of Test Case 1 Before Custom ISPRE Pass}
+\label{fig:no_ispre_cfg}
+\end{center}
+\end{figure*}
+
+
+\begin{figure*}
+\begin{center}
+\includegraphics[width=0.95\linewidth]{ispre_test1.ispre.cfg.pdf}
+\caption{CFG of Test Case 1 After Custom ISPRE Pass}
+\label{fig:ispre_cfg}
+\end{center}
+\end{figure*}
+ 
+	\bibliographystyle{plain}
+	\bibliography{reference}
+
+\end{document}          
+
