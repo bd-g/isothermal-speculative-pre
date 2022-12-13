@@ -25,13 +25,13 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "ispre"
+#define DEBUG_TYPE "ispre2"
 
-namespace ISPRE {
-struct ISPREPass : public FunctionPass {
+namespace ISPRE2 {
+struct ISPRE2Pass : public FunctionPass {
     static char ID;
-    static constexpr double THRESHOLD = 0.9;
-    ISPREPass() : FunctionPass(ID) {}
+    static constexpr double THRESHOLD = 0.45;
+    ISPRE2Pass() : FunctionPass(ID) {}
 
     void printEdges(std::vector<std::pair<StringRef, StringRef>> edges, const char *currEdges) {
         errs() << "*************\n" << currEdges << "\n*************\n";
@@ -729,6 +729,6 @@ struct ISPREPass : public FunctionPass {
 };
 } // namespace ISPRE
 
-char ISPRE::ISPREPass::ID = 0;
-static RegisterPass<ISPRE::ISPREPass>
-    X("ispre", "Isothermal Speculative Partial Redundancy Elimination", false, false);
+char ISPRE2::ISPRE2Pass::ID = 0;
+static RegisterPass<ISPRE2::ISPRE2Pass>
+    X("ispre2", "Multipass (2) Isothermal Speculative Partial Redundancy Elimination", false, false);
