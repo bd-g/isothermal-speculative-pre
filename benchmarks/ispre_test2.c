@@ -5,7 +5,7 @@
 int main() {
     long long int a = 0;
     long long int sum = 0;
-    for (int i = 0; i < 1000; i++) {
+    for (long long int i = 0; i < 100000000; i++) {
         if (i < 90) {
             a = a + 2;
         } else {

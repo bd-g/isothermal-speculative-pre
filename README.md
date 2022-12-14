@@ -25,15 +25,16 @@ This project partially fulfills the requirements for the EECS 583 Compilers cour
 
 ## Benchmarks
 
-The `get_statistics.sh` performs two different benchmarks, correctness and performance, on three levels. The three levels are:
+The `get_statistics.sh` performs two different benchmarks, correctness and performance, on four levels. The four levels are:
 
     - O0 optimization 
     - O0 optimization plus global value numbering (LLVM's implementation of traditional PRE) and dead code elimination
     - O0 optimization plus our custom ISPRE pass and dead code elimination
+    - O0 optimization plus multiple passes of our custom ISPRE pass and dead code elimination
 
 The correctness benchmark will verify correct behavior of the custom pass by comparing the output of a compiled executable with our pass and the output of a compiled executable without our pass. 
 
-The performance benchmark will then run profiling on the three different levels, comparing runtime and IR code size between all three.
+The performance benchmark will then run profiling on the four different levels, comparing runtime and IR code size between all four.
 
 ## Results
 
@@ -49,8 +50,8 @@ $ ./get_statistics.sh ispre_test1
 1. 
    a. Runtime performance of unoptimized code
 
-real    0m0.304s
-user    0m0.304s
+real    0m0.294s
+user    0m0.294s
 sys     0m0.000s
 
    b. Code size (IR) of unoptimized code
@@ -59,8 +60,8 @@ sys     0m0.000s
 2. 
    a. Runtime performance of GVN code
 
-real    0m0.359s
-user    0m0.359s
+real    0m0.347s
+user    0m0.347s
 sys     0m0.000s
 
    b. Code size (IR) of optimized code
@@ -70,14 +71,24 @@ sys     0m0.000s
 3. 
    a. Runtime performance of ISPRE code
 
-real    0m0.275s
-user    0m0.275s
-sys     0m0.000s
+real    0m0.268s
+user    0m0.264s
+sys     0m0.004s
 
    b. Code size (IR) of optimized code
 
       3524 bytes, .012% change
 
+4. 
+   a. Runtime performance of Multipass ISPRE code
+
+real    0m0.268s
+user    0m0.264s
+sys     0m0.004s
+
+   b. Code size (IR) of optimized code
+
+      3652 bytes, .049% change
 ```
 
 bdgeorge@eecs583a:~/isothermal-speculative-pre/benchmarks$ 

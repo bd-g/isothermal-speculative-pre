@@ -60,7 +60,7 @@ multipasses="--ispre --ispre2 --ispre3 --ispre4"
 llvm_library="../build/ISPRE/ISPRE.so"
 
 # Delete outputs from any previous runs
-rm -f default.profraw ${source_program}_prof ${source_program}_ispre ${source_program}_no_ispre ${source_program}_gvn *.bc ${source_program}.profdata *_output *.ll
+rm -f default.profraw ${source_program}_prof ${source_program}_ispre ${source_program}_multiispre ${source_program}_no_ispre ${source_program}_gvn *.bc ${source_program}.profdata *_output *.ll
 
 # Convert source code to bitcode (IR)
 clang -emit-llvm -Xclang -disable-O0-optnone -c ${source_program}.c -o ${source_program}.bc
@@ -90,11 +90,14 @@ clang ${source_program}.multiispre.bc -o ${source_program}_multiispre
 
 # Produce output from binary to check correctness
 ./${source_program}_ispre > ispre_output
+./${source_program}_multiispre > multiispre_output
 
 echo -e "=== Correctness Check ==="
 echo ">> Does the custom pass maintain correct program behavior?"
 if [ "$(diff correct_output ispre_output)" != "" ]; then
-    echo -e ">> FAIL\n"
+    echo -e ">> FAIL - Single Pass\n"
+elif [ "$(diff correct_output multiispre_output)" != "" ]; then
+    echo -e ">> FAIL - Multi Pass\n"
 else
     echo -e ">> PASS\n"
 
@@ -155,5 +158,5 @@ if [ "$delete_intermediate" -eq 1 ] || [ "$delete_all" -eq 1 ]; then
 fi
 
 if [ "$delete_all" -eq 1 ] ; then
-    rm -f ${source_program}_ispre ${source_program}_no_ispre ${source_program}_gvn
+    rm -f ${source_program}_ispre ${source_program}_multiispre ${source_program}_no_ispre ${source_program}_gvn
 fi
