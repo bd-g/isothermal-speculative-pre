@@ -56,6 +56,7 @@ fi
 # Get command line arguments
 source_program=${1}
 passes=${2:-"-ispre"}
+multipasses="--ispre --ispre2 --ispre3 --ispre4"
 llvm_library="../build/ISPRE/ISPRE.so"
 
 # Delete outputs from any previous runs
@@ -76,6 +77,7 @@ llvm-profdata merge -o ${source_program}.profdata default.profraw
 opt -enable-new-pm=0 -o ${source_program}.none.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata < ${source_program}.bc > /dev/null
 opt -enable-new-pm=0 -o ${source_program}.gvn.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -gvn -dce < ${source_program}.bc > /dev/null
 opt -enable-new-pm=0 -o ${source_program}.ispre.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -load ${llvm_library} ${passes} -dce < ${source_program}.bc > /dev/null
+opt -enable-new-pm=0 -o ${source_program}.multiispre.bc -pgo-instr-use -pgo-test-profile-file=${1}.profdata -load ${llvm_library} ${multipasses} -dce < ${source_program}.bc > /dev/null
 
 # Generate binary excutable before ISPRE: Unoptimized code
 clang ${source_program}.none.bc -o ${source_program}_no_ispre
@@ -83,6 +85,8 @@ clang ${source_program}.none.bc -o ${source_program}_no_ispre
 clang ${source_program}.gvn.bc -o ${source_program}_gvn
 # Generate binary executable after ISPRE: Our optimized code
 clang ${source_program}.ispre.bc -o ${source_program}_ispre
+# Generate binary executable after Multipass ISPRE: Our optimized code
+clang ${source_program}.multiispre.bc -o ${source_program}_multiispre
 
 # Produce output from binary to check correctness
 ./${source_program}_ispre > ispre_output
@@ -106,10 +110,16 @@ else
     bcanalysis_optimized="$($bcanalyzer_optimized)"
     bytes_optimized=$(get_bytes_from_bcanalysis "${bcanalysis_optimized}")
 
+    bcanalyzer_moptimized="llvm-bcanalyzer ${source_program}.multiispre.bc"
+    bcanalysis_moptimized="$($bcanalyzer_moptimized)"
+    bytes_moptimized=$(get_bytes_from_bcanalysis "${bcanalysis_moptimized}")
+
     raw_gvn_difference=$((bytes_gvn_optimized - bytes_unoptimized))
     percent_gvn_difference=$(bc <<< "scale=3 ; $raw_gvn_difference / $bytes_unoptimized")
     raw_difference=$((bytes_optimized - bytes_unoptimized))
     percent_difference=$(bc <<< "scale=3 ; $raw_difference / $bytes_unoptimized")
+    raw_mdifference=$((bytes_moptimized - bytes_unoptimized))
+    percent_mdifference=$(bc <<< "scale=3 ; $raw_mdifference / $bytes_unoptimized")
 
     # Measure performance and output size stats
     echo -e "=== Performance Check ==="
@@ -131,6 +141,12 @@ else
     echo -e ""
     echo -e "   b. Code size (IR) of optimized code\n"
     echo -e "      ${bytes_optimized} bytes, ${percent_difference}% change\n"
+    echo -e "4. "
+    echo -e "   a. Runtime performance of Multipass ISPRE code"
+    time ./${source_program}_multiispre > /dev/null
+    echo -e ""
+    echo -e "   b. Code size (IR) of optimized code\n"
+    echo -e "      ${bytes_moptimized} bytes, ${percent_mdifference}% change\n"
 fi
 
 # Cleanup
